@@ -35,19 +35,19 @@ async def get_tapd_bugs() -> str:
 
 if __name__ == "__main__":
 
-    import asyncio
+    # import asyncio
     
-    print('===== 开始获取需求数据 =====')
-    stories = asyncio.run(get_tapd_stories())
-    print('===== 开始获取缺陷数据 =====')
-    bugs = asyncio.run(get_tapd_bugs())
+    # print('===== 开始获取需求数据 =====')
+    # stories = asyncio.run(get_tapd_stories())
+    # print('===== 开始获取缺陷数据 =====')
+    # bugs = asyncio.run(get_tapd_bugs())
 
-    # 打印需求数据结果
-    print('===== 需求数据获取结果 =====')
-    print(stories)
-    # 打印缺陷数据结果
-    print('===== 缺陷数据获取结果 =====')
-    print(bugs)
+    # # 打印需求数据结果
+    # print('===== 需求数据获取结果 =====')
+    # print(stories)
+    # # 打印缺陷数据结果
+    # print('===== 缺陷数据获取结果 =====')
+    # print(bugs)
 
     # 启动MCP服务器（使用标准输入输出传输）
     mcp.run(transport='stdio')
