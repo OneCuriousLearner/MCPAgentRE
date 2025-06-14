@@ -9,8 +9,9 @@ wheels/
 # Virtual environments
 .venv/
 
+# Private infomation
+msg_from_*.json
+knowledge_documents/
+
 # Else
 AnswerCode/
-msg_from_*.json
-______.git/
-knowledge_documents/

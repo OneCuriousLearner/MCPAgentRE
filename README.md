@@ -4,7 +4,7 @@
 MCP_Agent:RE是一个用于从TAPD平台获取需求和缺陷数据的Python项目，旨在为AI客户端提供数据支持。
 
 ## 项目结构
-- `knowledge_documents`：包含项目相关的知识文档
+- `knowledge_documents`：包含项目相关的知识文档（Github版本已隐去）
 - `tapd_data_fetcher.py`：包含从TAPD API获取需求和缺陷数据的逻辑
 - `tapd_mcp_server.py`：MCP服务器启动脚本，用于启动数据获取服务
 - `main.py`：项目入口文件，无实际作用
