@@ -25,9 +25,9 @@ MCP_Agent:RE是一个用于从TAPD平台获取需求和缺陷数据的Python项�
 
 2. **安装uv工具**
    - 终端运行（需确保pip已随Python安装）：
-   ```
-   pip install uv
-   ```
+      ```
+      pip install uv
+      ```
    - 验证安装：运行 uv --version ，应显示版本信息
 
 ### 二、项目文件迁移
@@ -146,26 +146,26 @@ MCP_Agent:RE是一个用于从TAPD平台获取需求和缺陷数据的Python项�
    - 选择“Developer”选项卡
    - 点击“Edit Config”按钮，将会弹出文件资源管理器
    - 编辑高亮提示的 claude_desktop_config.json 文件，添加以下内容（注意层级关系）：
-   ```json
-   {
-		"mcpServers": {
-			"tapd_data_fetcher": {
-				"command": "uv",
-				"args": [
-					"--directory",
-					"D:\\MiniProject\\MCPAgentRE",
-					"run",
-					"tapd_mcp_server.py"
-				]
-			}
-		}
-   }
-   ```
+      ```json
+      {
+         "mcpServers": {
+            "tapd_data_fetcher": {
+               "command": "uv",
+               "args": [
+                  "--directory",
+                  "D:\\MiniProject\\MCPAgentRE",
+                  "run",
+                  "tapd_mcp_server.py"
+               ]
+            }
+         }
+      }
+      ```
 
-   - 注意：
-      -  command 字段指定了运行MCP服务器的命令（通常为 uv ）
-      -  args 字段指定了运行MCP服务器的参数，包括项目目录（--directory）和运行的脚本文件（run tapd_mcp_server.py）
-      - 确保 --directory 指向的是MCP服务器所在的目录，即 D:\MiniProject\MCPAgentRE （请按照实际目录修改）
+      - 注意：
+         -  command 字段指定了运行MCP服务器的命令（通常为 uv ）
+         -  args 字段指定了运行MCP服务器的参数，包括项目目录（--directory）和运行的脚本文件（run tapd_mcp_server.py）
+         - 确保 --directory 指向的是MCP服务器所在的目录，即 D:\MiniProject\MCPAgentRE （请按照实际目录修改）
    - 保存并关闭文件
 
 ## 测试连接
@@ -182,10 +182,10 @@ MCP_Agent:RE是一个用于从TAPD平台获取需求和缺陷数据的Python项�
 - 如果MCP服务器运行时出现错误，检查MCP服务器的日志文件（通常位于 %APPDATA%\Claude\logs ）以获取更多信息
 - 如果AI客户端无法识别MCP插件，可能需要重新安装或更新AI客户端
 - 您可以运行以下命令列出最近的日志并跟踪任何新日志（在 Windows 上，它只会显示最近的日志）：
-    ```bash
-    # Windows
-    type "%APPDATA%\Claude\logs\mcp*.log"
-    ```
+   ```bash
+   # Windows
+   type "%APPDATA%\Claude\logs\mcp*.log"
+   ```
 
 ---
 
