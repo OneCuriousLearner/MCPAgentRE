@@ -62,6 +62,15 @@ MCP_Agent:RE是一个用于从TAPD平台获取需求和缺陷数据的Python项�
    uv run tapd_data_fetcher.py
    ```
 
+   - 预期输出：
+     ```text
+     ===== 开始获取需求数据 =====
+     需求数据获取完成，共获取X条
+     ===== 开始获取缺陷数据 =====
+     缺陷数据获取完成，共获取Y条
+     数据已成功保存至msg_from_fetcher.json文件。
+     ```
+
 2. 如果需要验证 tapd_mcp_server.py 是否正常获取数据，请将主函数中的以下代码解除注释：
    ```python
     import asyncio
@@ -137,8 +146,8 @@ MCP_Agent:RE是一个用于从TAPD平台获取需求和缺陷数据的Python项�
    - 选择“Developer”选项卡
    - 点击“Edit Config”按钮，将会弹出文件资源管理器
    - 编辑高亮提示的 claude_desktop_config.json 文件，添加以下内容（注意层级关系）：
-  ```json
-    {
+   ```json
+   {
 		"mcpServers": {
 			"tapd_data_fetcher": {
 				"command": "uv",
@@ -150,12 +159,13 @@ MCP_Agent:RE是一个用于从TAPD平台获取需求和缺陷数据的Python项�
 				]
 			}
 		}
-    }
-  ```
-     - 注意：
-       -  command 字段指定了运行MCP服务器的命令（通常为 uv ）
-       -  args 字段指定了运行MCP服务器的参数，包括项目目录（--directory）和运行的脚本文件（run tapd_mcp_server.py）
-       - 确保 --directory 指向的是MCP服务器所在的目录，即 D:\MiniProject\MCPAgentRE （请按照实际目录修改）
+   }
+   ```
+
+   - 注意：
+      -  command 字段指定了运行MCP服务器的命令（通常为 uv ）
+      -  args 字段指定了运行MCP服务器的参数，包括项目目录（--directory）和运行的脚本文件（run tapd_mcp_server.py）
+      - 确保 --directory 指向的是MCP服务器所在的目录，即 D:\MiniProject\MCPAgentRE （请按照实际目录修改）
    - 保存并关闭文件
 
 ## 测试连接
