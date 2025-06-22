@@ -182,7 +182,6 @@
 - 如果AI客户端无法识别MCP插件，可能需要重新安装或更新AI客户端
 - 您可以运行以下命令列出最近的日志并跟踪任何新日志（在 Windows 上，它只会显示最近的日志）：
   ```bash
-  # Windows
   type "%APPDATA%\Claude\logs\mcp*.log"
   ```
 

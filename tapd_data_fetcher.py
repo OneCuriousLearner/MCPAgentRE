@@ -2,9 +2,9 @@ import aiohttp
 import json
 
 # TAPD API 配置
-API_USER = '4ikoesFM'  # 请替换为实际API用户名
-API_PASSWORD = '66E631C9-62BC-5646-46DD-1A8F32CCEBA9'  # 请替换为实际API密码
-WORKSPACE_ID = '37857678'  # 请替换为实际项目ID
+API_USER = 'abcdefgh'  # 请替换为实际API用户名
+API_PASSWORD = '12345678-abcd-1234-efgh-123456789xyz'  # 请替换为实际API密码
+WORKSPACE_ID = '12345678'  # 请替换为实际项目ID
 
 # 获取需求数据（支持分页）的函数
 async def get_story_msg():
