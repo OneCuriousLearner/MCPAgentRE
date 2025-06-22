@@ -1,5 +1,7 @@
 # MCP_Agent:RE 项目迁移指南
 
+![对话效果预览](ClaudePreview.png)
+
 ## 项目背景
 `MCP_Agent:RE`是一个用于从TAPD平台获取需求和缺陷数据的Python项目，旨在为AI客户端提供数据支持。
 
