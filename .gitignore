@@ -12,6 +12,4 @@ wheels/
 # Private infomation
 msg_from_*.json
 knowledge_documents/
-
-# Else
 AnswerCode/
