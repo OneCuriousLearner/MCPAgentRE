@@ -61,6 +61,9 @@
     WORKSPACE_ID = '替换为你的TAPD项目ID'
     ```
 
+    - 注意：TAPD API用户名和密码需要从TAPD平台获取，具体操作请参阅[开放平台文档](https://open.tapd.cn/document/api-doc/API%E6%96%87%E6%A1%A3/%E4%BD%BF%E7%94%A8%E5%BF%85%E8%AF%BB.html)
+    - WORKSPACE_ID：TAPD项目ID，可通过TAPD平台获取
+
 ### 五、测试运行
 1. **在终端进入项目文件夹**
   - 终端运行： cd D:\MCPAgentRE （根据实际路径调整）
