@@ -1,13 +1,16 @@
 # MCP_Agent:RE 项目迁移指南
 
+* 对话效果预览
 ![对话效果预览](ClaudePreview.jpg)
 
-## 项目背景
-`MCP_Agent:RE`是一个用于从TAPD平台获取需求和缺陷数据的Python项目，旨在为AI客户端提供数据支持。
+* 此项目于2025年6月22日由[punkpeye (Frank Fiegel)](https://github.com/punkpeye)收录于[TAPD Data Fetcher | Glama](https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE)
 
 <a href="https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE/badge" alt="TAPD Data Fetcher MCP server" />
 </a>
+
+## 项目背景
+`MCP_Agent:RE`是一个用于从TAPD平台获取需求和缺陷数据的Python项目，旨在为AI客户端提供数据支持。
 
 ## 项目结构
 - `knowledge_documents`：包含项目相关的知识文档（Github版本已隐去）
