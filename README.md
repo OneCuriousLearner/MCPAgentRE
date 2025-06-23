@@ -3,7 +3,7 @@
 * 对话效果预览
 ![对话效果预览](ClaudePreview.jpg)
 
-* 此项目于2025年6月22日由[punkpeye (Frank Fiegel)](https://github.com/punkpeye)收录于[TAPD Data Fetcher | Glama](https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE)
+* 此项目于2025年6月10日由[punkpeye (Frank Fiegel)](https://github.com/punkpeye)收录于[TAPD Data Fetcher | Glama](https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE)
 
 <a href="https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE/badge" alt="TAPD Data Fetcher MCP server" />
