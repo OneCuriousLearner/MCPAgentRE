@@ -9,8 +9,10 @@ wheels/
 # Virtual environments
 .venv/
 
+# vscode
+.vscode/
+
 # Private infomation
 msg_from_*.json
 knowledge_documents/
-AnswerCode/
 api.txt

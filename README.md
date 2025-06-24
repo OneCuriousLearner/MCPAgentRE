@@ -15,14 +15,13 @@
 
 ## 项目结构
 
-* `knowledge_documents`：包含项目相关的知识文档（Github版本已隐去）
+* `knowledge_documents`：包含项目相关的知识文档（可自行创建目录并添加文档，Git提交时会根据`.gitignore`忽略）
 * `tapd_data_fetcher.py`：包含从TAPD API获取需求和缺陷数据的逻辑
 * `tapd_mcp_server.py`：MCP服务器启动脚本，用于启动数据获取服务
 * `main.py`：项目入口文件，无实际作用
 * `requirements.txt`：项目依赖列表
 * `pyproject.toml`：Python项目配置文件
-* `msg_from_fetcher.json`：从 tapd_data_fetcher.py 获取的数据，运行 tapd_data_fetcher.py 后自动生成
-* `msg_from_server.json`：从 tapd_mcp_server.py 获取的数据，运行 tapd_mcp_server.py 后自动生成（已弃用）
+* `msg_from_fetcher.json`：从 tapd_data_fetcher.py 获取的数据，运行 tapd_data_fetcher.py 后自动生成（Git提交时会根据`.gitignore`忽略）
 * `README.md`：项目说明文档
 
 ## 迁移步骤
