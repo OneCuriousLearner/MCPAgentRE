@@ -1,10 +1,45 @@
 import aiohttp
 import json
+import os
 
-# TAPD API 配置
-API_USER = 'abcdefgh'  # 请替换为实际API用户名
-API_PASSWORD = '12345678-abcd-1234-efgh-123456789xyz'  # 请替换为实际API密码
-WORKSPACE_ID = '12345678'  # 请替换为实际项目ID
+# 从配置文件读取API配置
+def load_api_config():
+    config_file = './api.txt'
+    config = {}
+    
+    if not os.path.exists(config_file):
+        raise FileNotFoundError(f"配置文件 {config_file} 不存在")
+    
+    try:
+        with open(config_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and '=' in line and not line.startswith('//'):
+                    key, value = line.split('=', 1)
+                    key = key.strip()
+                    value = value.strip().strip("'\"")  # 移除可能的引号
+                    config[key] = value
+        
+        # 验证必需的配置项
+        required_keys = ['API_USER', 'API_PASSWORD', 'WORKSPACE_ID']
+        for key in required_keys:
+            if key not in config:
+                raise ValueError(f"配置文件中缺少必需的配置项: {key}")
+        
+        return config
+    except Exception as e:
+        raise Exception(f"读取配置文件失败: {e}")
+
+# 加载配置
+try:
+    config = load_api_config()
+    API_USER = config['API_USER']
+    API_PASSWORD = config['API_PASSWORD']
+    WORKSPACE_ID = config['WORKSPACE_ID']
+    print(f"成功加载配置: 用户={API_USER}, 工作区={WORKSPACE_ID}")
+except Exception as e:
+    print(f"配置加载失败: {e}")
+    raise
 
 # 获取需求数据（支持分页）的函数
 async def get_story_msg():

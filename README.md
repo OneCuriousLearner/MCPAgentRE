@@ -70,7 +70,7 @@
 
 1. **TAPD API配置**
 
-  * 编辑`tapd_data_fetcher.py`文件，替换以下配置为目标TAPD项目的真实值：
+  * 在项目根目录下创建`api.txt`文件，复制下列文本，并替换配置为目标TAPD项目的真实值：
 
     ```python
     API_USER = '替换为你的TAPD API用户名'
@@ -80,6 +80,7 @@
 
     * 注意：TAPD API用户名和密码需要从TAPD平台获取，具体操作请参阅[开放平台文档](https://open.tapd.cn/document/api-doc/API%E6%96%87%E6%A1%A3/%E4%BD%BF%E7%94%A8%E5%BF%85%E8%AF%BB.html)
     * WORKSPACE_ID：TAPD项目ID，可通过TAPD平台获取
+    * 提交Git时会根据`.gitignore`忽略`api.txt`文件，确保敏感信息不被泄露
 
 ### 五、测试运行
 
@@ -98,6 +99,7 @@
   * 预期输出：
 
     ```text
+    成功加载配置: 用户=********, 工作区=********
     ===== 开始获取需求数据 =====
     需求数据获取完成，共获取X条
     ===== 开始获取缺陷数据 =====
