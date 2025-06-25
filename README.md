@@ -16,6 +16,7 @@
 ## 项目结构
 
 * `knowledge_documents`：包含项目相关的知识文档（可自行创建目录并添加文档，Git提交时会根据`.gitignore`忽略）
+* `api.txt`：包含使用API需要的密钥信息（需要自行创建，Git提交时会根据`.gitignore`忽略）
 * `tapd_data_fetcher.py`：包含从TAPD API获取需求和缺陷数据的逻辑
 * `tapd_mcp_server.py`：MCP服务器启动脚本，用于启动数据获取服务
 * `main.py`：项目入口文件，无实际作用
