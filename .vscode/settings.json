@@ -1,7 +1,0 @@
-{
-    "python.languageServer": "None",
-    "[markdown]": {
-        "editor.tabSize": 2,
-        "editor.insertSpaces": true
-    }
-}
