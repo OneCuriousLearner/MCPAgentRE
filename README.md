@@ -15,15 +15,21 @@
 
 ## 项目结构
 
-* `knowledge_documents`：包含项目相关的知识文档（可自行创建目录并添加文档，Git提交时会根据`.gitignore`忽略）
-* `api.txt`：包含使用API需要的密钥信息（需要自行创建，Git提交时会根据`.gitignore`忽略）
-* `tapd_data_fetcher.py`：包含从TAPD API获取需求和缺陷数据的逻辑
-* `tapd_mcp_server.py`：MCP服务器启动脚本，用于启动数据获取服务
-* `main.py`：项目入口文件，无实际作用
-* `requirements.txt`：项目依赖列表
-* `pyproject.toml`：Python项目配置文件
-* `msg_from_fetcher.json`：从 tapd_data_fetcher.py 获取的数据，运行 tapd_data_fetcher.py 后自动生成（Git提交时会根据`.gitignore`忽略）
-* `README.md`：项目说明文档
+```
+MCPAgentRE\
+├─knowledge_documents\      # 可自行创建该目录并添加知识文档（Git 提交时会被忽略）
+├─.gitignore                # Git 提交时遵守的过滤规则
+├─.python-version           # Python 版本（3.10）
+├─api.txt                   # 包含 API 密钥信息，需要自行创建（Git 提交时会被忽略）
+├─main.py                   # 项目入口文件，无实际作用
+├─msg_from_fetcher.json     # 从 tapd_data_fetcher.py 获取的数据（Git 提交时会被忽略）
+├─pyproject.toml            # 传统的 Python 依赖管理文件
+├─requirements.txt          # 现代的 Python 依赖管理文件
+├─README.md                 # 项目说明文档，也就是本文档
+├─tapd_data_fetcher.py      # 包含从 TAPD API 获取需求和缺陷数据的逻辑
+├─tapd_mcp_server.py        # MCP 服务器启动脚本，用于启动数据获取服务
+└─uv.lock                   # UV 包管理器使用的锁定文件
+```
 
 ## 迁移步骤
 
@@ -195,17 +201,17 @@
 
     ```json
     {
-        "mcpServers": {
-          "tapd_data_fetcher": {
-              "command": "uv",
-              "args": [
-                "--directory",
-                "D:\\MiniProject\\MCPAgentRE",
-                "run",
-                "tapd_mcp_server.py"
-              ]
-          }
+      "mcpServers": {
+        "tapd_data_fetcher": {
+          "command": "uv",
+          "args": [
+            "--directory",
+            "D:\\MiniProject\\MCPAgentRE",
+            "run",
+            "tapd_mcp_server.py"
+          ]
         }
+      }
     }
     ```
 
