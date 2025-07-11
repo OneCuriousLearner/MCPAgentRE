@@ -246,6 +246,62 @@ MCPAgentRE\
 
 ---
 
+## 扩展MCP服务器功能
+
+为了让项目目录结构更清晰，建议将MCP工具函数放在`mcp_tools`文件夹中。下面是一个添加新工具函数的示例方法。
+
+### 添加新工具函数
+
+1. **创建工具函数文件**
+   - 在`mcp_tools`文件夹中创建新的Python文件（如`new_tool.py`）
+   - 编写异步函数，示例模板：
+
+     ```python
+     async def new_function(param1: str, param2: int) -> dict:
+         """
+         新工具函数说明
+         
+         参数:
+             param1: 参数说明
+             param2: 参数说明
+             
+         返回:
+             返回数据结构说明
+         """
+         # 函数实现
+         return {"result": "处理结果"}
+     ```
+
+2. **注册工具到服务器**
+   - 在`tapd_mcp_server.py`中添加：
+     - 导入语句：`from mcp_tools.new_tool import new_function`
+     - 使用`@mcp.tool()`装饰器注册函数：
+
+       ```python
+       @mcp.tool()
+       async def new_tool(param1: str, param2: int) -> dict:
+           """
+           工具功能详细说明
+           
+           参数:
+               param1 (str): 参数详细说明
+               param2 (int): 参数详细说明
+               
+           返回:
+               dict: 返回数据结构详细说明
+           """
+           return await new_function(param1, param2)
+       ```
+
+3. **文档最佳实践**
+   - 为AI客户端添加清晰的文档：
+     - 函数级文档：使用详细的中文说明，包括参数类型和返回值结构
+     - 参数说明：明确每个参数的数据类型和预期用途
+     - 返回说明：详细描述返回字典的每个字段
+     - 示例：提供调用示例和预期输出
+
+---
+
 # 相关文档或网址
 
 * [TAPD帮助文档](https://www.tapd.cn/help/show#1120003271001000137)
