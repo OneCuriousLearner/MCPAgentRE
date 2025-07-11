@@ -18,6 +18,7 @@
 ```
 MCPAgentRE\
 ├─knowledge_documents\      # 可自行创建该目录并添加知识文档（Git 提交时会被忽略）
+├─mcp_tools\                # MCP 工具目录
 ├─.gitignore                # Git 提交时遵守的过滤规则
 ├─.python-version           # 记录 Python 版本（3.10）
 ├─api.txt                   # 包含 API 密钥信息，需要自行创建（Git 提交时会被忽略）
