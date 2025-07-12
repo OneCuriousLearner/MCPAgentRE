@@ -7,5 +7,6 @@ requires-python = ">=3.10"
 dependencies = [
     "aiohttp>=3.12.8",
     "mcp[cli]>=1.9.2",
+    "numpy>=2.2.6",
     "requests>=2.32.3",
 ]

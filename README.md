@@ -25,7 +25,6 @@ MCPAgentRE\
 ├─main.py                   # 项目入口文件，无实际作用
 ├─msg_from_fetcher.json     # 从 tapd_data_fetcher.py 获取的数据（Git 提交时会被忽略）
 ├─pyproject.toml            # 现代的 Python 依赖管理文件
-├─requirements.txt          # 传统的 Python 依赖管理文件
 ├─README.md                 # 项目说明文档，也就是本文档
 ├─tapd_data_fetcher.py      # 包含从 TAPD API 获取需求和缺陷数据的逻辑
 ├─tapd_mcp_server.py        # MCP 服务器启动脚本，用于启动数据获取服务
@@ -71,7 +70,7 @@ MCPAgentRE\
     uv add mcp[cli] aiohttp requests
     ```
 
-    * 该命令会根据`pyproject.toml`或`requirements.txt`安装所有依赖（包括MCP SDK、aiohttp等）
+    * 该命令会根据`pyproject.toml`安装所有依赖（包括MCP SDK、aiohttp等）
 
 ### 四、配置调整
 
