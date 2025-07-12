@@ -19,11 +19,12 @@
 MCPAgentRE\
 ├─knowledge_documents\      # 可自行创建该目录并添加知识文档（Git 提交时会被忽略）
 ├─mcp_tools\                # MCP 工具目录
+├─local_data\               # 本地数据目录，用于存储从 TAPD 获取的数据、数据库等（Git 提交时会被忽略）
+│  └─msg_from_fetcher.json   # 从 TAPD 获取的需求和缺陷数据（JSON 格式）
 ├─.gitignore                # Git 提交时遵守的过滤规则
 ├─.python-version           # 记录 Python 版本（3.10）
 ├─api.txt                   # 包含 API 密钥信息，需要自行创建（Git 提交时会被忽略）
 ├─main.py                   # 项目入口文件，无实际作用
-├─msg_from_fetcher.json     # 从 tapd_data_fetcher.py 获取的数据（Git 提交时会被忽略）
 ├─pyproject.toml            # 现代的 Python 依赖管理文件
 ├─README.md                 # 项目说明文档，也就是本文档
 ├─tapd_data_fetcher.py      # 包含从 TAPD API 获取需求和缺陷数据的逻辑

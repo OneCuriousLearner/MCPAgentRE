@@ -125,7 +125,8 @@ if __name__ == '__main__':
         'bugs': bugs_data
     }
     
-    with open('msg_from_fetcher.json', 'w', encoding='utf-8') as f:
+    os.makedirs('local_data', exist_ok=True)
+    with open(os.path.join('local_data', 'msg_from_fetcher.json'), 'w', encoding='utf-8') as f:
         json.dump(data_to_save, f, ensure_ascii=False, indent=4)
-    
-    print('数据已成功保存至msg_from_fetcher.json文件。')
+
+    print('数据已成功保存至local_data/msg_from_fetcher.json文件。')

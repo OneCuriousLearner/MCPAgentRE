@@ -13,6 +13,6 @@ wheels/
 .vscode/
 
 # Private infomation
-msg_from_*.json
+local_data/
 knowledge_documents/
 api.txt
