@@ -1,4 +1,4 @@
-# MCP_Agent:RE 项目迁移指南
+# MCP_Agent:RE 项目指南
 
 * 对话效果预览
 ![对话效果预览](ClaudePreview.jpg)
@@ -19,14 +19,14 @@
 MCPAgentRE\
 ├─knowledge_documents\      # 知识文档（Git 提交时会被忽略）
 ├─local_data\               # 本地数据目录，用于存储从 TAPD 获取的数据、数据库等（Git 提交时会被忽略）
-├─mcp_tools\                # MCP 工具目录
-│  ├─data_vectorizer.py         # 高级向量化工具（完整版）
-│  ├─simple_vectorizer.py       # 简化向量化工具（推荐使用）
-│  └─example_tool.py            # 示例工具
 │  ├─msg_from_fetcher.json      # 从 TAPD 获取的需求和缺陷数据
 │  ├─data_vector.index          # 向量数据库索引文件
 │  ├─data_vector.metadata.pkl   # 向量数据库元数据文件
 │  └─data_vector.config.json    # 向量数据库配置文件
+├─mcp_tools\                # MCP 工具目录
+│  ├─example_tool.py            # 示例工具
+│  ├─simple_vectorizer.py       # 简化向量化工具（推荐使用）
+│  └─data_vectorizer.py         # 高级向量化工具（完整版）
 ├─models\                   # 模型目录
 ├─test\                     # 测试目录
 │  ├─test_comprehensive.py      # 综合向量化功能测试
@@ -45,7 +45,7 @@ MCPAgentRE\
 
 ## 迁移步骤
 
-以下是将项目移植到其他Windows电脑的详细步骤，确保通用性验证：
+以下是将项目移植到其他 Windows 电脑的详细步骤（尚未测试 Mac 与 Linux）：
 
 ### 一、环境准备
 
@@ -125,7 +125,7 @@ MCPAgentRE\
     数据已成功保存至msg_from_fetcher.json文件。
     ```
 
-2. 如果需要验证`tapd_mcp_server.py`是否正常获取数据，请将主函数中的以下代码解除注释：
+2. 如果需要验证`tapd_mcp_server.py`是否正常获取数据，请将 main 函数中的以下代码解除注释：
 
   ```python
   import asyncio
@@ -182,11 +182,12 @@ MCPAgentRE\
   uv run test\test_comprehensive.py
   ```
 
+  * 首次使用时需要连接 VPN 以下载模型
   * 这些测试脚本位于`test`目录下，会验证所有向量化功能
 
 #### 正常模式
 
-1. 确保`tapd_mcp_server.py`的主函数中中相关代码已注释或删除
+1. 确保`tapd_mcp_server.py`的 main 函数中的下列代码已注释或删除
 
   ```python
   # import asyncio
@@ -204,7 +205,7 @@ MCPAgentRE\
   # print(bugs)
   ```
 
-2. 运行MCP服务器（此操作由AI客户端根据配置文件自动执行，无需手动操作）：
+2. 运行MCP服务器（此操作将由AI客户端根据配置文件自动执行，无需手动操作）：
 
   ```bash
   uv run tapd_mcp_server.py
@@ -335,7 +336,7 @@ MCPAgentRE\
           return await new_function(param1, param2)
       ```
 
-3. **文档最佳实践**
+3. **描述文档最佳实践**
 
   - 为AI客户端添加清晰的文档：
     - 函数级文档：使用详细的中文说明，包括参数类型和返回值结构
