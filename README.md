@@ -15,12 +15,22 @@
 
 ## 项目结构
 
-```
+```text
 MCPAgentRE\
-├─knowledge_documents\      # 可自行创建该目录并添加知识文档（Git 提交时会被忽略）
+├─knowledge_documents\      # 知识文档（Git 提交时会被忽略）
 ├─mcp_tools\                # MCP 工具目录
+│  ├─data_vectorizer.py         # 高级向量化工具（完整版）
+│  ├─simple_vectorizer.py       # 简化向量化工具（推荐使用）
+│  └─example_tool.py            # 示例工具
 ├─local_data\               # 本地数据目录，用于存储从 TAPD 获取的数据、数据库等（Git 提交时会被忽略）
-│  └─msg_from_fetcher.json   # 从 TAPD 获取的需求和缺陷数据（JSON 格式）
+│  ├─msg_from_fetcher.json      # 从 TAPD 获取的需求和缺陷数据
+│  ├─data_vector.index          # 向量数据库索引文件
+│  ├─data_vector.metadata.pkl   # 向量数据库元数据文件
+│  └─data_vector.config.json    # 向量数据库配置文件
+├─test\                     # 测试目录
+│  ├─test_comprehensive.py      # 综合功能测试
+│  ├─test_vectorization.py      # 基础向量化测试
+│  └─vector_quick_start.py      # 向量化功能快速启动脚本
 ├─.gitignore                # Git 提交时遵守的过滤规则
 ├─.python-version           # 记录 Python 版本（3.10）
 ├─api.txt                   # 包含 API 密钥信息，需要自行创建（Git 提交时会被忽略）
@@ -68,7 +78,7 @@ MCPAgentRE\
   * 运行依赖安装命令：
 
     ```bash
-    uv add mcp[cli] aiohttp requests
+    uv sync
     ```
 
     * 该命令会根据`pyproject.toml`安装所有依赖（包括MCP SDK、aiohttp等）
@@ -145,6 +155,28 @@ MCPAgentRE\
     [具体JSON数据...]
     ```
 
+3. **快速验证向量化功能**（推荐）：
+
+  ```bash
+  uv run test\vector_quick_start.py
+  ```
+
+  * 该脚本会自动运行数据获取、向量化和搜索功能，验证整体流程是否正常
+  * 首次使用时需要连接 VPN 以下载模型
+  * 预期输出：显示向量化成功和搜索演示结果
+
+4. **详细功能测试**：
+
+  ```bash
+  # 基础向量化测试
+  uv run test\test_vectorization.py
+  
+  # 综合功能测试
+  uv run test\test_comprehensive.py
+  ```
+
+  * 这些测试脚本位于`test`目录下，会验证所有向量化功能
+
 #### 正常模式
 
 1. 确保`tapd_mcp_server.py`的主函数中中相关代码已注释或删除
@@ -165,7 +197,7 @@ MCPAgentRE\
   # print(bugs)
   ```
 
-2. 运行MCP服务器：
+2. 运行MCP服务器（此操作由AI客户端根据配置文件自动执行，无需手动操作）：
 
   ```bash
   uv run tapd_mcp_server.py
@@ -203,7 +235,7 @@ MCPAgentRE\
     ```json
     {
       "mcpServers": {
-        "tapd_data_fetcher": {
+        "tapd_mcp_server": {
           "command": "uv",
           "args": [
             "--directory",
@@ -225,10 +257,10 @@ MCPAgentRE\
 ## 测试连接
 
 * 点击Claude Desktop界面左上角的`+`按钮，选择`New Chat`
-* 在新的聊天窗口中，输入以下内容：
+* 在新的聊天窗口中，输入以下内容测试基础功能：
 
   ```text
-  请使用tapd_data_fetcher插件获取TAPD项目的需求和缺陷数据
+  请使用tapd_mcp_server插件获取TAPD项目的需求和缺陷数据
   ```
 
 * 点击发送按钮，等待MCP服务器返回数据

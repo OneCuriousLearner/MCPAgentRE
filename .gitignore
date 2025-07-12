@@ -13,6 +13,12 @@ wheels/
 .vscode/
 
 # Private infomation
-local_data/
-knowledge_documents/
+local_data/*
+!local_data/.gitkeep
+knowledge_documents/*
+!knowledge_documents/.gitkeep
 api.txt
+
+# models
+models/*
+!models/.gitkeep
