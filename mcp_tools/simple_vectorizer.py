@@ -241,9 +241,16 @@ async def simple_vectorize_data(chunk_size: int = 10) -> dict:
 async def simple_search_data(query: str, top_k: int = 5) -> dict:
     """简化的搜索函数"""
     try:
+        print(f"开始搜索: '{query}', top_k={top_k}")
+        
         # 加载模型和数据库
+        print("正在加载模型...")
         model = get_or_create_model()
+        print("模型加载完成")
+        
+        print("正在加载向量数据库...")
         index, metadata = load_vector_database()
+        print(f"向量数据库加载完成，分片数: {len(metadata) if metadata else 0}")
         
         if index is None or metadata is None:
             return {
@@ -252,32 +259,46 @@ async def simple_search_data(query: str, top_k: int = 5) -> dict:
             }
         
         # 查询向量化
+        print("正在向量化查询文本...")
         query_vector = model.encode([query])
         query_norm = query_vector.astype(np.float32)
+        print("查询向量化完成")
         
         import faiss
         faiss.normalize_L2(query_norm)
+        print("查询向量归一化完成")
         
         # 搜索
-        scores, indices = index.search(query_norm, min(top_k, len(metadata)))
+        search_k = min(top_k, len(metadata))
+        print(f"开始向量搜索，搜索范围: {search_k}/{len(metadata)}")
+        scores, indices = index.search(query_norm, search_k)
+        print(f"向量搜索完成，返回 {len(indices[0])} 个结果")
         
         # 格式化结果
+        print("正在格式化搜索结果...")
         results = []
-        for score, idx in zip(scores[0], indices[0]):
-            if idx < len(metadata):
+        for i, (score, idx) in enumerate(zip(scores[0], indices[0])):
+            if idx < len(metadata) and idx >= 0:  # 添加边界检查
                 chunk = metadata[idx]
                 # 兼容两种元数据格式
                 chunk_type = chunk.get('type') or chunk.get('item_type', 'unknown')
                 item_count = chunk.get('count') or chunk.get('item_count', 0)
                 items = chunk.get('items') or chunk.get('original_items', [])
                 
+                # 限制每个结果中的items数量，避免过大的响应
+                limited_items = items[:3] if isinstance(items, list) else []
+                
                 results.append({
                     'relevance_score': float(score),
                     'chunk_type': chunk_type,
                     'item_count': item_count,
-                    'items': items[:3]  # 只返回前3个
+                    'items': limited_items
                 })
+                print(f"处理结果 {i+1}: type={chunk_type}, score={score:.4f}, items={len(limited_items)}")
+            else:
+                print(f"警告: 无效索引 {idx}, 跳过")
         
+        print(f"搜索完成，返回 {len(results)} 个有效结果")
         return {
             "status": "success",
             "message": f"找到 {len(results)} 个相关结果",
@@ -286,9 +307,14 @@ async def simple_search_data(query: str, top_k: int = 5) -> dict:
         }
         
     except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"搜索过程发生错误: {str(e)}")
+        print(f"错误详情: {error_detail}")
         return {
             "status": "error",
-            "message": f"搜索失败: {str(e)}"
+            "message": f"搜索失败: {str(e)}",
+            "error_detail": error_detail
         }
 
 async def simple_get_db_info() -> dict:

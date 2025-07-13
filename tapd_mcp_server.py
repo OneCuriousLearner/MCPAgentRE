@@ -4,7 +4,7 @@ import asyncio
 from mcp.server.fastmcp import FastMCP
 from tapd_data_fetcher import get_story_msg, get_bug_msg    # 从tapd_data_fetcher模块导入获取需求和缺陷数据的函数
 from mcp_tools.example_tool import example_function    # 从mcp_tools.example_tool模块导入示例工具函数
-from mcp_tools.simple_vectorizer import simple_vectorize_data, simple_search_data, simple_get_db_info    # 导入简化向量化工具
+from mcp_tools.simple_vectorizer import simple_vectorize_data, simple_search_data as _simple_search_data, simple_get_db_info    # 导入简化向量化工具
 from mcp_tools.data_vectorizer import vectorize_tapd_data, search_tapd_data, get_vector_db_info    # 导入完整向量化工具
 
 # 初始化MCP服务器
@@ -161,7 +161,7 @@ async def simple_search_data(query: str, top_k: int = 5) -> str:
         - "高优先级的开发任务"
     """
     try:
-        result = await simple_search_data(query, top_k)
+        result = await _simple_search_data(query, top_k)
         return json.dumps(result, ensure_ascii=False, indent=2)
     except Exception as e:
         error_result = {
