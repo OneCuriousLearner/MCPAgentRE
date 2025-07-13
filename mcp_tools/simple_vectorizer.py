@@ -266,11 +266,16 @@ async def simple_search_data(query: str, top_k: int = 5) -> dict:
         for score, idx in zip(scores[0], indices[0]):
             if idx < len(metadata):
                 chunk = metadata[idx]
+                # 兼容两种元数据格式
+                chunk_type = chunk.get('type') or chunk.get('item_type', 'unknown')
+                item_count = chunk.get('count') or chunk.get('item_count', 0)
+                items = chunk.get('items') or chunk.get('original_items', [])
+                
                 results.append({
                     'relevance_score': float(score),
-                    'chunk_type': chunk['type'],
-                    'item_count': chunk['count'],
-                    'items': chunk['items'][:3]  # 只返回前3个
+                    'chunk_type': chunk_type,
+                    'item_count': item_count,
+                    'items': items[:3]  # 只返回前3个
                 })
         
         return {
@@ -297,8 +302,8 @@ async def simple_get_db_info() -> dict:
                 "message": "向量数据库不存在，请先运行向量化"
             }
         
-        story_chunks = sum(1 for chunk in metadata if chunk['type'] == 'story')
-        bug_chunks = sum(1 for chunk in metadata if chunk['type'] == 'bug')
+        story_chunks = sum(1 for chunk in metadata if chunk.get('type') == 'story' or chunk.get('item_type') == 'story')
+        bug_chunks = sum(1 for chunk in metadata if chunk.get('type') == 'bug' or chunk.get('item_type') == 'bug')
         
         return {
             "status": "ready",
@@ -306,7 +311,7 @@ async def simple_get_db_info() -> dict:
             "stats": {
                 "total_chunks": len(metadata),
                 "vector_dimension": index.d,
-                "total_items": sum(chunk['count'] for chunk in metadata),
+                "total_items": sum(chunk.get('count', 0) or chunk.get('item_count', 0) for chunk in metadata),
                 "story_chunks": story_chunks,
                 "bug_chunks": bug_chunks
             }
