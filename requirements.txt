@@ -1,0 +1,8 @@
+requests
+beautifulsoup4
+sentence-transformers
+faiss-cpu
+faker
+numpy
+selenium
+python-docx

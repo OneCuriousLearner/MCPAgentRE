@@ -10,6 +10,7 @@ from mcp_tools.simple_vectorizer import simple_vectorize_data, simple_search_dat
 from mcp_tools.data_vectorizer import vectorize_tapd_data, search_tapd_data, get_vector_db_info    # 导入完整向量化工具
 from mcp_tools.fake_tapd_gen import generate as fake_generate    # 导入TAPD数据生成器
 from mcp_tools.context_optimizer import build_overview    # 导入上下文优化器
+from mcp_tools.docx_summarizer import summarize_docx as _summarize_docx
 
 # 初始化MCP服务器
 mcp = FastMCP("tapd")
@@ -529,6 +530,22 @@ async def generate_tapd_overview(
             "suggestion": "请检查API密钥配置和网络连接"
         }
         return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def summarize_docx(docx_path: str, max_paragraphs: int = 5) -> str:
+    """
+    读取 docx 文档，返回所有段落内容和摘要的 JSON 数据
+    
+    参数：
+        docx_path (str): .docx 文件路径
+        max_paragraphs (int): 摘要最多包含的段落数，默认5
+    返回：
+        str: JSON 字符串，包含所有段落和摘要
+    """
+    # 兼容 async 调用
+    import asyncio
+    loop = asyncio.get_event_loop() if asyncio.get_event_loop().is_running() else asyncio.new_event_loop()
+    return await loop.run_in_executor(None, _summarize_docx, docx_path, max_paragraphs)
 
 if __name__ == "__main__":
 
