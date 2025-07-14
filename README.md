@@ -37,7 +37,7 @@
 #### 数据生成与分析工具
 
 * **`generate_fake_tapd_data(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)`** - 生成模拟 TAPD 数据，用于测试和演示（使用后将会覆盖本地数据，若需要来自 API 的正确数据，请再次调用数据获取工具）
-* **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 生成项目质量概览报告和智能摘要
+* **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API）
   * `use_local_data=True`（默认）：使用本地数据文件进行分析，适合测试和离线分析
   * `use_local_data=False`：从TAPD API获取最新数据进行分析，适合实时数据分析
 
@@ -60,6 +60,8 @@ MCPAgentRE\
 ├─mcp_tools\                # MCP 工具目录
 │  ├─data_vectorizer.py         # 高级向量化工具（完整版，适用于生产环境）
 │  ├─simple_vectorizer.py       # 简化向量化工具（推荐日常或测试使用）
+│  ├─context_optimizer.py        # 上下文优化器，支持智能摘要生成
+│  ├─fake_tapd_gen.py           # TAPD 假数据生成器，用于测试和演示
 │  └─example_tool.py            # 示例工具
 ├─models\                   # 模型目录
 ├─test\                     # 测试目录
@@ -161,7 +163,7 @@ MCPAgentRE\
 
 * 设置环境变量后需重启编辑器和MCP客户端
 * 如果不配置API密钥，智能摘要工具会返回错误提示，但不影响其他功能的使用
-* 详细配置说明请参考 `knowledge_documents/环境变量配置指南.md`
+* 详细配置说明请参考 `knowledge_documents/DeepSeek API 环境变量配置指南.md`
 
 ### 五、测试运行
 
@@ -267,8 +269,8 @@ MCPAgentRE\
 * **环境变量配置（在线模式）**：为使用上下文优化器的在线LLM功能，需要设置以下环境变量：
 
   ```bash
-  set DS_KEY=your_deepseek_api_key       # DeepSeek API密钥
-  set DS_EP=https://api.deepseek.com/v1  # API端点URL（可选，默认为DeepSeek）
+  set DS_KEY=your_deepseek_api_key        # DeepSeek API密钥
+  set DS_EP=https://api.deepseek.com/v1   # API端点URL（可选，默认为DeepSeek）
   set DS_MODEL=deepseek-reasoner          # 模型名称（可选，默认为deepseek-reasoner）
   ```
 
@@ -375,11 +377,11 @@ MCPAgentRE\
   type "%APPDATA%\Claude\logs\mcp*.log"
   ```
 
-## 扩展MCP服务器功能
+# 扩展MCP服务器功能
 
 为了让项目目录结构更清晰，建议将MCP工具函数放在`mcp_tools`文件夹中。下面是一个添加新工具函数的示例方法。
 
-### 添加新工具函数
+## 添加新工具函数
 
 1. **创建工具函数文件**
 

@@ -463,38 +463,30 @@ async def generate_tapd_overview(
     """
     try:
         # 导入必要的函数
-        from tapd_data_fetcher import get_story_msg, get_bug_msg, get_local_story_msg, get_local_bug_msg
+        from tapd_data_fetcher import (
+            get_story_msg, get_bug_msg, 
+            get_local_story_msg_filtered, get_local_bug_msg_filtered,
+            get_story_msg_filtered, get_bug_msg_filtered
+        )
         
-        # 根据参数选择数据源
+        # 根据参数选择数据源并直接获取筛选后的数据
         if use_local_data:
-            print("使用本地数据文件进行分析...")
-            get_story_func = get_local_story_msg
-            get_bug_func = get_local_bug_msg
+            print(f"使用本地数据文件进行分析，时间范围：{since} 到 {until}")
+            stories_data = await get_local_story_msg_filtered(since, until)
+            bugs_data = await get_local_bug_msg_filtered(since, until)
         else:
-            print("从TAPD API获取最新数据进行分析...")
-            get_story_func = get_story_msg
-            get_bug_func = get_bug_msg
+            print(f"从TAPD API获取最新数据进行分析，时间范围：{since} 到 {until}")
+            stories_data = await get_story_msg_filtered(since, until)
+            bugs_data = await get_bug_msg_filtered(since, until)
         
         # 包装获取函数以适配context_optimizer的接口
         async def fetch_story(**params):
-            # 这里需要适配分页参数，暂时返回所有数据
-            stories = await get_story_func()
-            # 简单的分页模拟
-            page = params.get('page', 1)
-            limit = params.get('limit', 200)
-            start = (page - 1) * limit
-            end = start + limit
-            return stories[start:end] if len(stories) > start else []
+            # 直接返回已筛选的数据，无需分页处理
+            return stories_data
             
         async def fetch_bug(**params):
-            # 这里需要适配分页参数，暂时返回所有数据
-            bugs = await get_bug_func()
-            # 简单的分页模拟
-            page = params.get('page', 1)
-            limit = params.get('limit', 200)
-            start = (page - 1) * limit
-            end = start + limit
-            return bugs[start:end] if len(bugs) > start else []
+            # 直接返回已筛选的数据，无需分页处理
+            return bugs_data
         
         # 调用上下文优化器
         overview = await build_overview(

@@ -1,6 +1,7 @@
 import aiohttp
 import json
 import os
+from datetime import datetime
 
 # 从配置文件读取API配置
 def load_api_config():
@@ -166,6 +167,139 @@ async def get_local_bug_msg():
         return bugs
     except Exception as e:
         print(f'读取本地缺陷数据失败: {str(e)}')
+        return []
+
+def filter_data_by_time(data_list, since_str, until_str, time_field='created'):
+    """
+    根据时间范围筛选数据
+    
+    参数:
+        data_list: 数据列表
+        since_str: 开始时间字符串，格式为 YYYY-MM-DD
+        until_str: 结束时间字符串，格式为 YYYY-MM-DD
+        time_field: 用于筛选的时间字段名，默认为 'created'
+    
+    返回:
+        筛选后的数据列表
+    """
+    if not data_list:
+        return []
+    
+    try:
+        # 解析时间字符串
+        since_date = datetime.strptime(since_str, "%Y-%m-%d")
+        until_date = datetime.strptime(until_str, "%Y-%m-%d")
+        
+        filtered_data = []
+        for item in data_list:
+            # 检查时间字段是否存在
+            if time_field not in item:
+                continue
+            
+            # 解析数据中的时间
+            item_time_str = item[time_field]
+            if not item_time_str:
+                continue
+            
+            try:
+                # 处理TAPD时间格式：YYYY-MM-DD HH:MM:SS 或 YYYY-MM-DD
+                if ' ' in item_time_str:
+                    item_time = datetime.strptime(item_time_str.split(' ')[0], "%Y-%m-%d")
+                else:
+                    item_time = datetime.strptime(item_time_str, "%Y-%m-%d")
+                
+                # 检查是否在时间范围内
+                if since_date <= item_time <= until_date:
+                    filtered_data.append(item)
+                    
+            except ValueError:
+                # 如果时间格式无法解析，跳过这条数据
+                continue
+        
+        return filtered_data
+        
+    except ValueError as e:
+        print(f'时间格式解析错误: {str(e)}')
+        return data_list  # 如果时间解析失败，返回原始数据
+
+async def get_local_story_msg_filtered(since_str=None, until_str=None):
+    """从本地文件读取需求数据并按时间筛选"""
+    try:
+        # 先获取所有数据
+        all_stories = await get_local_story_msg()
+        
+        # 如果没有指定时间范围，返回所有数据
+        if not since_str or not until_str:
+            return all_stories
+        
+        # 按创建时间筛选数据
+        filtered_stories = filter_data_by_time(all_stories, since_str, until_str, 'created')
+        
+        print(f'按时间筛选需求数据：{since_str} 到 {until_str}，筛选后共{len(filtered_stories)}条')
+        return filtered_stories
+        
+    except Exception as e:
+        print(f'筛选本地需求数据失败: {str(e)}')
+        return []
+
+async def get_local_bug_msg_filtered(since_str=None, until_str=None):
+    """从本地文件读取缺陷数据并按时间筛选"""
+    try:
+        # 先获取所有数据
+        all_bugs = await get_local_bug_msg()
+        
+        # 如果没有指定时间范围，返回所有数据
+        if not since_str or not until_str:
+            return all_bugs
+        
+        # 按创建时间筛选数据
+        filtered_bugs = filter_data_by_time(all_bugs, since_str, until_str, 'created')
+        
+        print(f'按时间筛选缺陷数据：{since_str} 到 {until_str}，筛选后共{len(filtered_bugs)}条')
+        return filtered_bugs
+        
+    except Exception as e:
+        print(f'筛选本地缺陷数据失败: {str(e)}')
+        return []
+
+async def get_story_msg_filtered(since_str=None, until_str=None):
+    """从TAPD API获取需求数据并按时间筛选"""
+    try:
+        # 先获取所有数据
+        all_stories = await get_story_msg()
+        
+        # 如果没有指定时间范围，返回所有数据
+        if not since_str or not until_str:
+            return all_stories
+        
+        # 按创建时间筛选数据
+        filtered_stories = filter_data_by_time(all_stories, since_str, until_str, 'created')
+        
+        print(f'按时间筛选API需求数据：{since_str} 到 {until_str}，筛选后共{len(filtered_stories)}条')
+        return filtered_stories
+        
+    except Exception as e:
+        print(f'筛选API需求数据失败: {str(e)}')
+        return []
+
+async def get_bug_msg_filtered(since_str=None, until_str=None):
+    """从TAPD API获取缺陷数据并按时间筛选"""
+    try:
+        # 先获取所有数据
+        all_bugs = await get_bug_msg()
+        
+        # 如果没有指定时间范围，返回所有数据
+        if not since_str or not until_str:
+            return all_bugs
+        
+        # 按创建时间筛选数据
+        filtered_bugs = filter_data_by_time(all_bugs, since_str, until_str, 'created')
+        
+        print(f'按时间筛选API缺陷数据：{since_str} 到 {until_str}，筛选后共{len(filtered_bugs)}条')
+        return filtered_bugs
+        
+    except Exception as e:
+        print(f'筛选API缺陷数据失败: {str(e)}')
         return []
 
 if __name__ == '__main__':
