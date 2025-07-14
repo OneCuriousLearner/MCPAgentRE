@@ -52,6 +52,7 @@
 ```text
 MCPAgentRE\
 ├─knowledge_documents\      # 知识文档（Git 提交时会被忽略）
+│  ├─DeepSeek API 环境变量配置指南.md
 ├─local_data\               # 本地数据目录，用于存储从 TAPD 获取的数据、数据库等（Git 提交时会被忽略）
 │  ├─msg_from_fetcher.json      # 从 TAPD 获取的需求和缺陷数据
 │  ├─data_vector.index          # 向量数据库索引文件
@@ -71,6 +72,7 @@ MCPAgentRE\
 │  └─vector_quick_start.py      # 向量化功能快速启动脚本
 ├─.gitignore                # Git 提交时遵守的过滤规则
 ├─.python-version           # 记录 Python 版本（3.10）
+├─提示词 - TAPD 平台 MCP 分析助手.md
 ├─api.txt                   # 包含 API 密钥信息，需要自行创建（Git 提交时会被忽略）
 ├─main.py                   # 项目入口文件，无实际作用
 ├─pyproject.toml            # 现代的 Python 依赖管理文件

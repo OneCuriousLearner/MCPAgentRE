@@ -12,6 +12,12 @@ wheels/
 # vscode
 .vscode/
 
+# Claude
+.claude/
+
+# idea
+.idea/
+
 # Private infomation
 local_data/*
 !local_data/.gitkeep

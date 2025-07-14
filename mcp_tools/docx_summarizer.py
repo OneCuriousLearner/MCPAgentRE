@@ -53,6 +53,6 @@ if __name__ == "__main__":
     result_json = summarize_docx(test_path)
     print(result_json)
     # 输出到主文件夹
-    with open("../docx_summary.json", "w", encoding="utf-8") as f:
+    with open("../docx_sum/docx_summary.json", "w", encoding="utf-8") as f:
         f.write(result_json)
-    print("已将摘要和全部内容输出到主文件夹下的 docx_summary.json 文件。") 
+    print("已将摘要和全部内容输出到 docx_sum/docx_summary.json 文件。") 
