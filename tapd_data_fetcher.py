@@ -113,6 +113,61 @@ async def get_bug_msg():
     print(f'缺陷数据获取完成，共获取{len(bugs_list)}条')
     return bugs_list
 
+# 从本地文件读取数据的函数
+async def get_local_story_msg():
+    """从本地文件读取需求数据"""
+    try:
+        local_file_path = os.path.join('local_data', 'msg_from_fetcher.json')
+        if not os.path.exists(local_file_path):
+            print('本地数据文件不存在，请先运行数据获取或生成假数据')
+            return []
+        
+        with open(local_file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        if isinstance(data, list):
+            # 如果是旧格式（直接的数组），筛选出story类型的数据
+            stories = [item for item in data if item.get('type') == 'story']
+        elif isinstance(data, dict) and 'stories' in data:
+            # 如果是新格式（包含stories和bugs键的字典）
+            stories = data['stories']
+        else:
+            # 如果格式不识别，返回空列表
+            stories = []
+        
+        print(f'从本地文件加载需求数据，共{len(stories)}条')
+        return stories
+    except Exception as e:
+        print(f'读取本地需求数据失败: {str(e)}')
+        return []
+
+async def get_local_bug_msg():
+    """从本地文件读取缺陷数据"""
+    try:
+        local_file_path = os.path.join('local_data', 'msg_from_fetcher.json')
+        if not os.path.exists(local_file_path):
+            print('本地数据文件不存在，请先运行数据获取或生成假数据')
+            return []
+        
+        with open(local_file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        if isinstance(data, list):
+            # 如果是旧格式（直接的数组），筛选出bug类型的数据
+            bugs = [item for item in data if item.get('type') == 'bug']
+        elif isinstance(data, dict) and 'bugs' in data:
+            # 如果是新格式（包含stories和bugs键的字典）
+            bugs = data['bugs']
+        else:
+            # 如果格式不识别，返回空列表
+            bugs = []
+        
+        print(f'从本地文件加载缺陷数据，共{len(bugs)}条')
+        return bugs
+    except Exception as e:
+        print(f'读取本地缺陷数据失败: {str(e)}')
+        return []
+
 if __name__ == '__main__':
     import asyncio
     print('===== 开始获取需求数据 =====')

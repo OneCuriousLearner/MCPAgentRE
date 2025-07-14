@@ -13,6 +13,40 @@
 
 `MCP_Agent:RE`是一个用于从TAPD平台获取需求和缺陷数据的Python项目，旨在为AI客户端提供数据支持。
 
+### 可用的 MCP 服务器
+
+本项目提供了丰富的 MCP 工具集，支持 TAPD 数据的获取、处理、分析和智能摘要功能：
+
+#### 数据获取工具
+
+* **`get_tapd_data()`** - 从 TAPD API 获取需求和缺陷数据并保存到本地文件，返回数量统计【推荐】
+  * 适用于首次获取数据或定期更新本地数据
+  * 包含需求和缺陷数据的完整集成
+* **`get_tapd_stories()`** - 获取 TAPD 项目需求数据，支持分页和API认证，但不保存至本地，建议仅在数据量较小时使用
+* **`get_tapd_bugs()`** - 获取 TAPD 项目缺陷数据，支持状态过滤，支持分页和API认证，但不保存至本地，建议仅在数据量较小时使用
+
+#### 向量化与搜索工具
+
+* **`vectorize_data(chunk_size)`** - 简化版向量化工具，适用于日常使用和快速测试
+* **`get_vector_info()`** - 获取简化版向量数据库状态和统计信息
+* **`simple_search_data(query, top_k)`** - 基于语义相似度的智能搜索（简化版）
+* **`advanced_vectorize_data(data_file_path, chunk_size)`** - 完整版向量化工具，适用于生产环境
+* **`advanced_search_data(query, top_k)`** - 高级智能搜索，返回详细元数据
+* **`advanced_get_vector_info()`** - 获取完整版向量数据库详细信息
+
+#### 数据生成与分析工具
+
+* **`generate_fake_tapd_data(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)`** - 生成模拟 TAPD 数据，用于测试和演示（使用后将会覆盖本地数据，若需要来自 API 的正确数据，请再次调用数据获取工具）
+* **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 生成项目质量概览报告和智能摘要
+  * `use_local_data=True`（默认）：使用本地数据文件进行分析，适合测试和离线分析
+  * `use_local_data=False`：从TAPD API获取最新数据进行分析，适合实时数据分析
+
+#### 示例工具
+
+* **`example_tool(param1, param2)`** - 示例工具，展示 MCP 工具注册方式
+
+这些工具支持从数据获取到智能分析的完整工作流，为 AI 驱动的测试管理提供强大支持。
+
 ## 项目结构
 
 ```text
@@ -101,6 +135,34 @@ MCPAgentRE\
   * WORKSPACE_ID：TAPD项目ID，可通过TAPD平台获取
   * 提交Git时会根据`.gitignore`忽略`api.txt`文件，确保敏感信息不被泄露
 
+2. **智能摘要API配置（可选）**
+
+如果您需要使用智能摘要功能（`generate_tapd_overview`工具），需要配置DeepSeek API密钥：
+
+* **获取API密钥**：访问 [DeepSeek 开放平台](https://platform.deepseek.com/) 注册并获取API密钥
+
+* **设置环境变量**（Windows PowerShell）：
+
+  ```powershell
+  # 临时设置（仅当前会话有效）
+  $env:DS_KEY = "your-api-key-here"
+  
+  # 永久设置（推荐）
+  [Environment]::SetEnvironmentVariable("DS_KEY", "your-api-key-here", "User")
+  ```
+
+* **验证配置**：
+
+  ```powershell
+  echo $env:DS_KEY
+  ```
+
+* **注意事项**：
+
+* 设置环境变量后需重启编辑器和MCP客户端
+* 如果不配置API密钥，智能摘要工具会返回错误提示，但不影响其他功能的使用
+* 详细配置说明请参考 `knowledge_documents/环境变量配置指南.md`
+
 ### 五、测试运行
 
 1. **在终端进入项目文件夹**
@@ -188,6 +250,30 @@ MCPAgentRE\
 
 * 首次使用时需要连接 VPN 以下载模型
 * 这些测试脚本位于`test`目录下，会验证所有向量化功能
+
+5. **上下文优化器和假数据生成测试**：
+
+  ```bash
+  # 生成模拟TAPD数据（用于测试）
+  uv run mcp_tools\fake_tapd_gen.py
+  
+  # 使用上下文优化器生成数据概览（离线模式）
+  uv run mcp_tools\context_optimizer.py -f local_data\msg_from_fetcher.json --offline --debug
+  
+  # 生成详细摘要（需要配置API密钥）
+  uv run mcp_tools\context_optimizer.py -f local_data\msg_from_fetcher.json --debug
+  ```
+
+* **环境变量配置（在线模式）**：为使用上下文优化器的在线LLM功能，需要设置以下环境变量：
+
+  ```bash
+  set DS_KEY=your_deepseek_api_key       # DeepSeek API密钥
+  set DS_EP=https://api.deepseek.com/v1  # API端点URL（可选，默认为DeepSeek）
+  set DS_MODEL=deepseek-reasoner          # 模型名称（可选，默认为deepseek-reasoner）
+  ```
+
+* 上下文优化器支持离线模式（`--offline`参数）和在线智能摘要生成
+* 假数据生成器用于测试和演示，生成符合TAPD格式的模拟数据
 
 #### 正常模式
 
@@ -288,52 +374,6 @@ MCPAgentRE\
   ```bash
   type "%APPDATA%\Claude\logs\mcp*.log"
   ```
-
----
-
-## 向量化工具选择指南
-
-本项目提供了两个不同的向量化工具，用于解决大批量TAPD数据处理时tokens超限的问题：
-
-### 工具对比
-
-| 特性 | simple_vectorizer（简化版） | data_vectorizer（完整版） |
-|------|---------------------------|-------------------------|
-| **设计理念** | 函数式，追求简洁高效 | 面向对象，功能完整 |
-| **适用场景** | 日常使用、快速测试 | 生产环境、详细分析 |
-| **性能表现** | 启动快、资源占用小 | 功能全面、扩展性强 |
-| **文本提取** | 基础字段（标题、状态、优先级） | 完整字段（工作量、进度、回归次数等） |
-| **配置管理** | 无配置文件 | 自动保存详细配置 |
-
-### MCP工具映射
-
-**简化版工具（推荐日常使用）：**
-
-* `vectorize_data` - 简化向量化
-* `simple_search_data` - 简化搜索
-* `get_vector_info` - 获取基础信息
-
-**完整版工具（推荐生产使用）：**
-
-* `advanced_vectorize_data` - 高级向量化
-* `advanced_search_data` - 高级搜索
-* `advanced_get_vector_info` - 获取详细信息
-
-### 使用建议
-
-**快速开始** - 选择 simple_vectorizer
-
-* 第一次使用项目
-* 进行功能测试和验证
-* 追求简单快速的体验
-
-**生产部署** - 选择 data_vectorizer
-
-* 在生产环境中使用
-* 需要详细的数据管理和追溯
-* 长期稳定的服务运行
-
----
 
 ## 扩展MCP服务器功能
 

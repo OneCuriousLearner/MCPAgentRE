@@ -1,11 +1,15 @@
 from typing import Any, Optional
 import json
 import asyncio
+import os
+from datetime import datetime
 from mcp.server.fastmcp import FastMCP
 from tapd_data_fetcher import get_story_msg, get_bug_msg    # 从tapd_data_fetcher模块导入获取需求和缺陷数据的函数
 from mcp_tools.example_tool import example_function    # 从mcp_tools.example_tool模块导入示例工具函数
 from mcp_tools.simple_vectorizer import simple_vectorize_data, simple_search_data as _simple_search_data, simple_get_db_info    # 导入简化向量化工具
 from mcp_tools.data_vectorizer import vectorize_tapd_data, search_tapd_data, get_vector_db_info    # 导入完整向量化工具
+from mcp_tools.fake_tapd_gen import generate as fake_generate    # 导入TAPD数据生成器
+from mcp_tools.context_optimizer import build_overview    # 导入上下文优化器
 
 # 初始化MCP服务器
 mcp = FastMCP("tapd")
@@ -34,6 +38,71 @@ async def example_tool(param1: str, param2: int) -> dict:
     return await example_function(param1, param2)
 
 @mcp.tool()
+async def get_tapd_data() -> str:
+    """从TAPD API获取需求和缺陷数据并保存到本地文件
+    
+    功能描述:
+        - 从TAPD API获取完整的需求和缺陷数据
+        - 将数据保存到本地文件 local_data/msg_from_fetcher.json
+        - 返回获取到的需求和缺陷数量统计
+        - 为后续的本地数据分析提供数据基础
+        
+    数据保存格式:
+        {
+            "stories": [...],  // 需求数据数组
+            "bugs": [...]      // 缺陷数据数组
+        }
+        
+    返回:
+        str: 包含数据获取结果和统计信息的JSON字符串
+        
+    使用场景:
+        - 初次设置时获取最新数据
+        - 定期更新本地数据缓存
+        - 为离线分析准备数据
+    """
+    try:
+        print('===== 开始获取需求数据 =====')
+        stories_data = await get_story_msg()
+        
+        print('===== 开始获取缺陷数据 =====')
+        bugs_data = await get_bug_msg()
+        
+        # 准备要保存的数据
+        data_to_save = {
+            'stories': stories_data,
+            'bugs': bugs_data
+        }
+        
+        # 确保目录存在并保存数据
+        os.makedirs('local_data', exist_ok=True)
+        with open(os.path.join('local_data', 'msg_from_fetcher.json'), 'w', encoding='utf-8') as f:
+            json.dump(data_to_save, f, ensure_ascii=False, indent=4)
+        
+        # 返回统计结果
+        result = {
+            "status": "success",
+            "message": "数据已成功保存至local_data/msg_from_fetcher.json文件",
+            "statistics": {
+                "stories_count": len(stories_data),
+                "bugs_count": len(bugs_data),
+                "total_count": len(stories_data) + len(bugs_data)
+            },
+            "file_path": "local_data/msg_from_fetcher.json"
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"获取和保存TAPD数据失败：{str(e)}",
+            "suggestion": "请检查API密钥配置和网络连接"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
 async def get_tapd_stories() -> str:
     """获取TAPD平台指定项目的需求数据（支持分页）
     
@@ -41,6 +110,7 @@ async def get_tapd_stories() -> str:
         - 从TAPD API获取指定项目的所有需求数据
         - 支持分页获取大量数据
         - 自动处理API认证和错误
+        - 数据不保存至本地，建议仅在数据量较小时使用
         
     返回数据格式:
         - 每个需求包含ID、标题、状态、优先级、创建/修改时间等字段
@@ -63,6 +133,7 @@ async def get_tapd_bugs() -> str:
         - 从TAPD API获取指定项目的所有缺陷数据
         - 支持按状态、优先级等条件过滤
         - 自动处理API认证和错误
+        - 数据不保存至本地，建议仅在数据量较小时使用
         
     返回数据格式:
         - 每个缺陷包含ID、标题、严重程度、状态、解决方案等字段
@@ -277,6 +348,193 @@ async def advanced_get_vector_info() -> str:
         error_result = {
             "status": "error",
             "message": f"获取高级向量信息失败：{str(e)}"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def generate_fake_tapd_data(
+    n_story_A: int = 300, 
+    n_story_B: int = 200,
+    n_bug_A: int = 400, 
+    n_bug_B: int = 300,
+    output_path: str = "local_data/fake_tapd.json"
+) -> str:
+    """生成模拟的TAPD需求和缺陷数据
+    
+    功能描述:
+        - 使用Faker库生成中文模拟数据，用于测试和开发
+        - 创建两种类型的需求：算法策略类和功能决策类需求
+        - 创建两种类型的缺陷：简单缺陷和包含详细复现步骤的缺陷
+        - 自动添加优先级、状态、创建时间、负责人、标签等公共字段
+        - 生成的数据格式与真实TAPD数据保持一致
+        
+    参数:
+        n_story_A (int): 算法策略类需求数量，默认300条
+        n_story_B (int): 功能决策类需求数量，默认200条
+        n_bug_A (int): 简单缺陷数量，默认400条
+        n_bug_B (int): 详细缺陷数量，默认300条
+        output_path (str): 输出文件路径，默认为 local_data/fake_tapd.json
+        
+    返回:
+        str: 生成结果的JSON字符串，包含生成的数据统计信息
+        
+    使用场景:
+        - 开发和测试阶段生成测试数据
+        - 验证向量化和搜索功能
+        - 演示和培训场景
+    """
+    try:
+        import os
+        # 确保目标目录存在
+        dir_path = os.path.dirname(output_path)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
+        
+        # 调用生成函数
+        fake_generate(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)
+        
+        total_items = n_story_A + n_story_B + n_bug_A + n_bug_B
+        result = {
+            "status": "success", 
+            "message": f"Successfully generated {total_items} TAPD items",
+            "details": {
+                "story_type_A": n_story_A,
+                "story_type_B": n_story_B, 
+                "bug_type_A": n_bug_A,
+                "bug_type_B": n_bug_B,
+                "total": total_items,
+                "output_file": output_path
+            }
+        }
+        # 使用ASCII安全模式返回结果，避免编码问题
+        return json.dumps(result, ensure_ascii=True, indent=2)
+    except UnicodeEncodeError as e:
+        error_result = {
+            "status": "error",
+            "message": f"Encoding error during data generation: {str(e)}",
+            "suggestion": "Try using ASCII-safe file paths and avoid special characters"
+        }
+        return json.dumps(error_result, ensure_ascii=True, indent=2)
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"Failed to generate fake data: {str(e)}"
+        }
+        return json.dumps(error_result, ensure_ascii=True, indent=2)
+
+@mcp.tool()
+async def generate_tapd_overview(
+    since: str = "2025-01-01",
+    until: str = datetime.now().strftime("%Y-%m-%d"),
+    max_total_tokens: int = 6000,
+    model: str = "deepseek-reasoner",
+    endpoint: str = "https://api.deepseek.com/v1",
+    use_local_data: bool = True
+) -> str:
+    """生成TAPD数据的智能概览和摘要
+    
+    功能描述:
+        - 使用上下文优化器处理大型TAPD数据集
+        - 基于token数量自动分块数据，避免token超限问题
+        - 集成在线LLM API（DeepSeek/Qwen/OpenAI兼容）进行智能摘要
+        - 递归摘要生成，将多个数据块的摘要合并为总体概览
+        - 支持时间范围过滤，获取指定期间的数据摘要
+        
+    参数:
+        since (str): 开始时间，格式为 YYYY-MM-DD，默认 "2025-01-01"
+        until (str): 结束时间，格式为 YYYY-MM-DD，默认为当前系统日期
+        max_total_tokens (int): 最大token数量，默认6000
+        model (str): LLM模型名称，默认 "deepseek-reasoner"
+        endpoint (str): API端点URL，默认DeepSeek API
+        use_local_data (bool): 是否使用本地数据，默认True（使用本地文件），False时从TAPD API获取最新数据
+        
+    返回:
+        str: 概览结果的JSON字符串，包含数据统计和智能摘要
+        
+    注意事项:
+        - 需要配置环境变量 DS_KEY（DeepSeek API密钥）
+        - 首次使用时需要确保网络连接正常，用于调用在线LLM
+        - 处理大量数据时可能需要较长时间
+        
+    使用场景:
+        - 生成项目质量分析报告
+        - 快速了解项目整体情况
+        - 为管理层提供数据概览
+    """
+    try:
+        # 导入必要的函数
+        from tapd_data_fetcher import get_story_msg, get_bug_msg, get_local_story_msg, get_local_bug_msg
+        
+        # 根据参数选择数据源
+        if use_local_data:
+            print("使用本地数据文件进行分析...")
+            get_story_func = get_local_story_msg
+            get_bug_func = get_local_bug_msg
+        else:
+            print("从TAPD API获取最新数据进行分析...")
+            get_story_func = get_story_msg
+            get_bug_func = get_bug_msg
+        
+        # 包装获取函数以适配context_optimizer的接口
+        async def fetch_story(**params):
+            # 这里需要适配分页参数，暂时返回所有数据
+            stories = await get_story_func()
+            # 简单的分页模拟
+            page = params.get('page', 1)
+            limit = params.get('limit', 200)
+            start = (page - 1) * limit
+            end = start + limit
+            return stories[start:end] if len(stories) > start else []
+            
+        async def fetch_bug(**params):
+            # 这里需要适配分页参数，暂时返回所有数据
+            bugs = await get_bug_func()
+            # 简单的分页模拟
+            page = params.get('page', 1)
+            limit = params.get('limit', 200)
+            start = (page - 1) * limit
+            end = start + limit
+            return bugs[start:end] if len(bugs) > start else []
+        
+        # 调用上下文优化器
+        overview = await build_overview(
+            fetch_story=fetch_story,
+            fetch_bug=fetch_bug,
+            since=since,
+            until=until,
+            max_total_tokens=max_total_tokens,
+            model=model,
+            endpoint=endpoint
+        )
+        
+        # 检查摘要是否包含错误信息
+        summary_text = overview.get("summary_text", "")
+        if "无法生成智能摘要" in summary_text or "API配置错误" in summary_text:
+            # 如果摘要包含错误信息，返回错误状态
+            error_result = {
+                "status": "error",
+                "message": "智能摘要生成失败",
+                "details": summary_text,
+                "suggestion": "请设置环境变量 DS_KEY 为您的DeepSeek API密钥",
+                "time_range": f"{since} 至 {until}",
+                "total_stories": overview.get("total_stories", 0),
+                "total_bugs": overview.get("total_bugs", 0),
+                "chunks": overview.get("chunks", 0)
+            }
+            return json.dumps(error_result, ensure_ascii=False, indent=2)
+        
+        result = {
+            "status": "success",
+            "time_range": f"{since} 至 {until}",
+            **overview
+        }
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"生成概览失败：{str(e)}",
+            "suggestion": "请检查API密钥配置和网络连接"
         }
         return json.dumps(error_result, ensure_ascii=False, indent=2)
 
