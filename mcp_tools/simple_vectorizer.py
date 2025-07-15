@@ -87,7 +87,7 @@ def get_or_create_model():
         print("模型初始化完成")
     return _GLOBAL_MODEL_CACHE
 
-def load_vector_database(vector_db_path: str = "local_data/data_vector"):
+def load_vector_database(vector_db_path: str = "local_data/vector_data/data_vector"):
     """加载向量数据库"""
     global _GLOBAL_INDEX_CACHE, _GLOBAL_METADATA_CACHE
     
@@ -207,7 +207,7 @@ async def simple_vectorize_data(chunk_size: int = 10) -> dict:
         index.add(vectors_norm)
         
         # 保存
-        vector_db_path = "local_data/data_vector"
+        vector_db_path = "local_data/vector_data/data_vector"
         os.makedirs(os.path.dirname(vector_db_path), exist_ok=True)
         
         faiss.write_index(index, f"{vector_db_path}.index")

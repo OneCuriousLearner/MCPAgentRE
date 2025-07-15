@@ -5,7 +5,6 @@ docx_summarizer.py
 - 输入 .docx 文档路径，自动提取正文内容。
 - 生成简要摘要（如截取前N段）。
 - 作为 MCP 工具注册，便于 AI 自动调用。
-- 输出文件默认保存至 docx_sum 文件夹，便于统一管理。
 
 依赖：python-docx
 """
@@ -43,7 +42,9 @@ def summarize_docx(docx_path: str, max_paragraphs: int = 5) -> str:
         summary = "\n".join(paragraphs[:max_paragraphs]) if paragraphs else "文档无有效正文内容。"
 
         # 1. 提取图片
-        pictures_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../pictures_data'))
+        # 获取项目根目录路径
+        current_dir = os.getcwd()
+        pictures_dir = os.path.join(current_dir, 'documents_data', 'pictures_data')
         os.makedirs(pictures_dir, exist_ok=True)
         picture_files = []
         rels = doc.part.rels
@@ -60,7 +61,7 @@ def summarize_docx(docx_path: str, max_paragraphs: int = 5) -> str:
                 picture_files.append(img_name)
 
         # 2. 提取表格为 CSV
-        tables_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../excel_data'))
+        tables_dir = os.path.join(current_dir, 'documents_data', 'excel_data')
         os.makedirs(tables_dir, exist_ok=True)
         table_files = []
         for idx, table in enumerate(doc.tables):
@@ -86,10 +87,10 @@ def summarize_docx(docx_path: str, max_paragraphs: int = 5) -> str:
 
 if __name__ == "__main__":
     # 示例用法
-    test_path = "../docx_sum/2.docx"
+    test_path = "documents_data/docx_data/2.docx"
     result_json = summarize_docx(test_path)
     print(result_json)
     # 输出到主文件夹
-    with open("../docx_summary.json", "w", encoding="utf-8") as f:
+    with open("docx_summary.json", "w", encoding="utf-8") as f:
         f.write(result_json)
-    print("已将文本摘要输出到主文件夹，图片信息输出到pictures_data文件夹，表格信息输出到excel_data文件夹。") 
+    print("已将文本摘要输出到主文件夹，图片信息输出到documents_data/pictures_data文件夹，表格信息输出到documents_data/excel_data文件夹。") 

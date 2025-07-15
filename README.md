@@ -25,6 +25,10 @@
 * **`get_tapd_stories()`** - 获取 TAPD 项目需求数据，支持分页和API认证，但不保存至本地，建议仅在数据量较小时使用
 * **`get_tapd_bugs()`** - 获取 TAPD 项目缺陷数据，支持状态过滤，支持分页和API认证，但不保存至本地，建议仅在数据量较小时使用
 
+#### 数据预处理工具
+
+* **`docx_summarizer.py`** - 提取 .docx 文档中的文本、图片和表格信息，并生成摘要（仍在开发中...）
+
 #### 向量化与搜索工具
 
 * **`vectorize_data(chunk_size)`** - 简化版向量化工具，适用于日常使用和快速测试
@@ -52,16 +56,23 @@
 ```text
 MCPAgentRE\
 ├─knowledge_documents\      # 知识文档（Git 提交时会被忽略）
-│  ├─DeepSeek API 环境变量配置指南.md
+│  └─DeepSeek API 环境变量配置指南.md
+├─documents_data\          # 文档数据目录
+│  ├─docx_data\               # 存储 .docx 文档的目录
+│  ├─excel_data\              # 存储 Excel 表格的目录
+│  └─pictures_data\           # 存储图片的目录
 ├─local_data\               # 本地数据目录，用于存储从 TAPD 获取的数据、数据库等（Git 提交时会被忽略）
 │  ├─msg_from_fetcher.json      # 从 TAPD 获取的需求和缺陷数据
-│  ├─data_vector.index          # 向量数据库索引文件
-│  ├─data_vector.metadata.pkl   # 向量数据库元数据文件
-│  └─data_vector.config.json    # 向量数据库配置文件
+│  ├─fake_tapd.json             # 假数据生成器生成的模拟 TAPD 数据
+│  └─vector_data\               # 向量数据库文件目录
+│     ├─data_vector.index          # 向量数据库索引文件
+│     ├─data_vector.metadata.pkl   # 向量数据库元数据文件
+│     └─data_vector.config.json    # 向量数据库配置文件
 ├─mcp_tools\                # MCP 工具目录
 │  ├─data_vectorizer.py         # 高级向量化工具（完整版，适用于生产环境）
 │  ├─simple_vectorizer.py       # 简化向量化工具（推荐日常或测试使用）
 │  ├─context_optimizer.py        # 上下文优化器，支持智能摘要生成
+│  ├─docx_summarizer.py          # 文档摘要生成器，提取 .docx 文档内容
 │  ├─fake_tapd_gen.py           # TAPD 假数据生成器，用于测试和演示
 │  └─example_tool.py            # 示例工具
 ├─models\                   # 模型目录
@@ -278,6 +289,15 @@ MCPAgentRE\
 
 * 上下文优化器支持离线模式（`--offline`参数）和在线智能摘要生成
 * 假数据生成器用于测试和演示，生成符合TAPD格式的模拟数据
+
+6. **文档摘要生成测试**（仍在开发中）：
+
+  ```bash
+  uv run mcp_tools\docx_summarizer.py
+  ```
+
+* 该脚本会提取指定.docx文档中的文本、图片和表格信息，并生成摘要
+* 预期输出：生成的摘要JSON文件和提取的图片、表格文件
 
 #### 正常模式
 

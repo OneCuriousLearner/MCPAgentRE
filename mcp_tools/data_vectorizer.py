@@ -71,7 +71,7 @@ class TAPDDataVectorizer:
         """
         self.model_name = model_name
         self.model: Optional[SentenceTransformer] = None
-        self.vector_db_path = vector_db_path or "local_data/data_vector"
+        self.vector_db_path = vector_db_path or "local_data/vector_data/data_vector"
         self.index: Optional[faiss.Index] = None
         self.metadata: List[Dict[str, Any]] = []
         
