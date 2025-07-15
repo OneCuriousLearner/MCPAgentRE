@@ -11,7 +11,7 @@
 
 ## 项目背景
 
-`MCP_Agent:RE`是一个用于从TAPD平台获取需求和缺陷数据的Python项目，旨在为AI客户端提供数据支持。
+`MCP_Agent:RE`是一个用于从 TAPD 平台获取需求和缺陷数据并生成质量分析报告的 Python 项目，旨在为 AI 客户端提供数据支持。
 
 ### 可用的 MCP 服务器
 
@@ -22,8 +22,8 @@
 * **`get_tapd_data()`** - 从 TAPD API 获取需求和缺陷数据并保存到本地文件，返回数量统计【推荐】
   * 适用于首次获取数据或定期更新本地数据
   * 包含需求和缺陷数据的完整集成
-* **`get_tapd_stories()`** - 获取 TAPD 项目需求数据，支持分页和API认证，但不保存至本地，建议仅在数据量较小时使用
-* **`get_tapd_bugs()`** - 获取 TAPD 项目缺陷数据，支持状态过滤，支持分页和API认证，但不保存至本地，建议仅在数据量较小时使用
+* **`get_tapd_stories()`** - 获取 TAPD 项目需求数据，支持分页并直接返回 JSON 数据，但不保存至本地，建议仅在数据量较小时使用
+* **`get_tapd_bugs()`** - 获取 TAPD 项目缺陷数据，支持分页并直接返回 JSON 数据，但不保存至本地，建议仅在数据量较小时使用
 
 #### 数据预处理工具
 
@@ -40,8 +40,8 @@
 
 #### 数据生成与分析工具
 
-* **`generate_fake_tapd_data(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)`** - 生成模拟 TAPD 数据，用于测试和演示（使用后将会覆盖本地数据，若需要来自 API 的正确数据，请再次调用数据获取工具）
-* **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API）
+* **`generate_fake_tapd_data(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)`** - 生成模拟 TAPD 数据，用于测试和演示（若不指明地址，使用后可能会覆盖本地数据，若需要来自 API 的正确数据，请再次调用数据获取工具）
+* **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API 密钥）
   * `use_local_data=True`（默认）：使用本地数据文件进行分析，适合测试和离线分析
   * `use_local_data=False`：从TAPD API获取最新数据进行分析，适合实时数据分析
 * **`analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)`** - 分析TAPD数据的词频分布，生成关键词词云统计，为搜索功能提供精准关键词建议
@@ -92,7 +92,7 @@ MCPAgentRE\
 ├─pyproject.toml            # 现代的 Python 依赖管理文件
 ├─README.md                 # 项目说明文档，也就是本文档
 ├─tapd_data_fetcher.py      # 包含从 TAPD API 获取需求和缺陷数据的逻辑
-├─tapd_mcp_server.py        # MCP 服务器启动脚本，用于启动数据获取服务
+├─tapd_mcp_server.py        # MCP 服务器启动脚本，用于提供所有 MCP 工具
 └─uv.lock                   # UV 包管理器使用的锁定文件
 ```
 
@@ -334,7 +334,7 @@ MCPAgentRE\
 * 使用快捷键`Ctrl + ,`打开设置页面（或者点击左上角菜单图标 - File - Settings）
 * 选择`Developer`选项卡
 * 点击`Edit Config`按钮，将会弹出文件资源管理器
-* 编辑高亮提示的`claude_desktop_config.json`文件，添加以下内容（注意层级关系）：
+* 编辑高亮提示的`claude_desktop_config.json`文件，添加以下内容（若有其他内容，请注意层级关系）：
 
   ```json
   {
