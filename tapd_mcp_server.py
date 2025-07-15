@@ -11,6 +11,7 @@ from mcp_tools.data_vectorizer import vectorize_tapd_data, search_tapd_data, get
 from mcp_tools.fake_tapd_gen import generate as fake_generate    # 导入TAPD数据生成器
 from mcp_tools.context_optimizer import build_overview    # 导入上下文优化器
 from mcp_tools.docx_summarizer import summarize_docx as _summarize_docx
+from mcp_tools.word_frequency_analyzer import analyze_tapd_word_frequency    # 导入词频分析器
 
 # 初始化MCP服务器
 mcp = FastMCP("tapd")
@@ -547,21 +548,65 @@ async def summarize_docx(docx_path: str, max_paragraphs: int = 5) -> str:
     loop = asyncio.get_event_loop() if asyncio.get_event_loop().is_running() else asyncio.new_event_loop()
     return await loop.run_in_executor(None, _summarize_docx, docx_path, max_paragraphs)
 
-if __name__ == "__main__":
-
-    # import asyncio
+@mcp.tool()
+async def analyze_word_frequency(
+    min_frequency: int = 3,
+    use_extended_fields: bool = True,
+    data_file_path: str = "local_data/msg_from_fetcher.json"
+) -> str:
+    """
+    分析TAPD数据的词频分布，生成关键词词云统计
     
-    # print('===== 开始获取需求数据 =====')
-    # stories = asyncio.run(get_tapd_stories())
-    # print('===== 开始获取缺陷数据 =====')
-    # bugs = asyncio.run(get_tapd_bugs())
+    功能描述:
+        - 从TAPD数据中提取关键词并统计词频
+        - 支持中文分词和停用词过滤
+        - 为搜索功能提供准确的关键词建议
+        - 生成词频分布统计和分类关键词
+        
+    参数:
+        min_frequency (int): 最小词频阈值，默认3
+            - 只返回出现次数 >= min_frequency 的词汇
+            - 推荐值: 3-10（根据数据量调整）
+        use_extended_fields (bool): 是否使用扩展字段，默认True
+            - True: 分析 name, description, test_focus, label, acceptance, comment, status, priority, iteration_id
+            - False: 仅分析 name, description, test_focus, label
+        data_file_path (str): 数据文件路径，默认为 local_data/msg_from_fetcher.json
+            - 支持自定义数据源路径
+            
+    返回:
+        str: 词频分析结果的JSON字符串，包含:
+            - 高频词统计
+            - 频次分布
+            - 搜索关键词建议
+            - 分类关键词推荐
+            
+    使用场景:
+        - 为 simple_search_data 和 advanced_search_data 提供精准搜索关键词
+        - 生成项目词云可视化数据
+        - 了解项目重点关注领域和常见问题
+        - 优化搜索查询的准确性
+        
+    注意事项:
+        - 首次使用前请确保已调用 get_tapd_data 获取数据
+        - 中文分词基于jieba库，适合中文项目分析
+        - 自动过滤常见停用词，专注于有意义的关键词
+    """
+    try:
+        result = await analyze_tapd_word_frequency(
+            min_frequency=min_frequency,
+            use_extended_fields=use_extended_fields,
+            data_file_path=data_file_path
+        )
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"词频分析失败：{str(e)}",
+            "suggestion": "请检查数据文件是否存在，建议先调用 get_tapd_data 工具获取数据"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
 
-    # # 打印需求数据结果
-    # print('===== 需求数据获取结果 =====')
-    # print(stories)
-    # # 打印缺陷数据结果
-    # print('===== 缺陷数据获取结果 =====')
-    # print(bugs)
+if __name__ == "__main__":
 
     # 启动MCP服务器（使用标准输入输出传输）
     mcp.run(transport='stdio')

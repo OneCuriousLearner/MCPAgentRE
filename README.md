@@ -35,8 +35,8 @@
 * **`get_vector_info()`** - 获取简化版向量数据库状态和统计信息
 * **`simple_search_data(query, top_k)`** - 基于语义相似度的智能搜索（简化版）
 * **`advanced_vectorize_data(data_file_path, chunk_size)`** - 完整版向量化工具，适用于生产环境
-* **`advanced_search_data(query, top_k)`** - 高级智能搜索，返回详细元数据
 * **`advanced_get_vector_info()`** - 获取完整版向量数据库详细信息
+* **`advanced_search_data(query, top_k)`** - 高级智能搜索，返回详细元数据
 
 #### 数据生成与分析工具
 
@@ -44,6 +44,7 @@
 * **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API）
   * `use_local_data=True`（默认）：使用本地数据文件进行分析，适合测试和离线分析
   * `use_local_data=False`：从TAPD API获取最新数据进行分析，适合实时数据分析
+* **`analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)`** - 分析TAPD数据的词频分布，生成关键词词云统计，为搜索功能提供精准关键词建议
 
 #### 示例工具
 
@@ -74,12 +75,14 @@ MCPAgentRE\
 │  ├─context_optimizer.py        # 上下文优化器，支持智能摘要生成
 │  ├─docx_summarizer.py          # 文档摘要生成器，提取 .docx 文档内容
 │  ├─fake_tapd_gen.py           # TAPD 假数据生成器，用于测试和演示
+│  ├─word_frequency_analyzer.py  # 词频分析工具，生成关键词词云统计
 │  └─example_tool.py            # 示例工具
 ├─models\                   # 模型目录
 ├─test\                     # 测试目录
 │  ├─test_comprehensive.py      # 综合向量化功能测试
 │  ├─test_vectorization.py      # 基础向量化功能测试
 │  ├─test_data_vectorizer.py    # 测试完整版 data_vectorizer 工具功能
+│  ├─test_word_frequency.py     # 词频分析工具测试
 │  └─vector_quick_start.py      # 向量化功能快速启动脚本
 ├─.gitignore                # Git 提交时遵守的过滤规则
 ├─.python-version           # 记录 Python 版本（3.10）
@@ -203,41 +206,28 @@ MCPAgentRE\
   数据已成功保存至msg_from_fetcher.json文件。
   ```
 
-2. 如果需要验证`tapd_mcp_server.py`是否正常获取数据，请将 main 函数中的以下代码解除注释：
-
-  ```python
-  import asyncio
-  
-  print('===== 开始获取需求数据 =====')
-  stories = asyncio.run(get_tapd_stories())
-  print('===== 开始获取缺陷数据 =====')
-  bugs = asyncio.run(get_tapd_bugs())
-
-  # 打印需求数据结果
-  print('===== 需求数据获取结果 =====')
-  print(stories)
-  # 打印缺陷数据结果
-  print('===== 缺陷数据获取结果 =====')
-  print(bugs)
-  ```
-
-  然后运行以下指令：
+2. 如果需要验证`tapd_mcp_server.py` 中所有 MCP工具是否正常注册，请运行以下指令：
 
   ```bash
-  uv run tapd_mcp_server.py
+  uv run check_mcp_tools.py
   ```
 
-* 预期输出：
-
+  输出结果如下：
   ```text
-  ===== 开始获取需求数据 =====
-  需求数据获取完成，共获取X条
-  ===== 开始获取缺陷数据 =====
-  缺陷数据获取完成，共获取Y条
-  ===== 需求数据获取结果 =====
-  [具体JSON数据...]
-  ===== 缺陷数据获取结果 =====
-  [具体JSON数据...]
+  成功加载配置: 用户=4ikoesFM, 工作区=37857678
+  ✅ MCP服务器启动成功！
+  📊 已注册工具数量: 14
+
+  🛠️ 已注册的工具列表:
+      1. example_tool -
+      示例工具函数（用于演示MCP工具注册方式）
+
+      功能描述:
+          ...
+      2. get_tapd_data - 从TAPD API获取需求和缺陷数据并保存到本地文件
+
+      功能描述:
+          ...
   ```
 
 3. **快速验证向量化功能**（推荐）：
@@ -290,7 +280,15 @@ MCPAgentRE\
 * 上下文优化器支持离线模式（`--offline`参数）和在线智能摘要生成
 * 假数据生成器用于测试和演示，生成符合TAPD格式的模拟数据
 
-6. **文档摘要生成测试**（仍在开发中）：
+6. **词频分析工具测试**：
+
+  ```bash
+  uv run mcp_tools\word_frequency_analyzer.py
+  ```
+
+* 该脚本会分析`local_data/msg_from_fetcher.json`中的数据，生成关键词词云统计
+
+7. **文档摘要生成测试**（仍在开发中）：
 
   ```bash
   uv run mcp_tools\docx_summarizer.py
@@ -301,23 +299,7 @@ MCPAgentRE\
 
 #### 正常模式
 
-1. 确保`tapd_mcp_server.py`的 main 函数中的下列代码已注释或删除
-
-  ```python
-  # import asyncio
-  
-  # print('===== 开始获取需求数据 =====')
-  # stories = asyncio.run(get_tapd_stories())
-  # print('===== 开始获取缺陷数据 =====')
-  # bugs = asyncio.run(get_tapd_bugs())
-
-  # # 打印需求数据结果
-  # print('===== 需求数据获取结果 =====')
-  # print(stories)
-  # # 打印缺陷数据结果
-  # print('===== 缺陷数据获取结果 =====')
-  # print(bugs)
-  ```
+1. 确保`tapd_mcp_server.py`的 main 函数中没有任何 print 语句（或已注释掉），以避免在启动时输出调试信息。
 
 2. 运行MCP服务器（此操作将由AI客户端根据配置文件自动执行，无需手动操作）：
 
