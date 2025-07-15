@@ -5,6 +5,7 @@ docx_summarizer.py
 - 输入 .docx 文档路径，自动提取正文内容。
 - 生成简要摘要（如截取前N段）。
 - 作为 MCP 工具注册，便于 AI 自动调用。
+- 输出文件默认保存至 docx_sum 文件夹，便于统一管理。
 
 依赖：python-docx
 """
@@ -49,10 +50,15 @@ def summarize_docx(docx_path: str, max_paragraphs: int = 5) -> str:
 
 if __name__ == "__main__":
     # 示例用法
-    test_path = "../docx_sum/1.docx"
+    import os
+    # 获取项目根目录
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    test_path = os.path.join(project_root, "docx_sum", "1.docx")
     result_json = summarize_docx(test_path)
     print(result_json)
-    # 输出到主文件夹
-    with open("../docx_sum/docx_summary.json", "w", encoding="utf-8") as f:
+    # 输出到 docx_sum 文件夹
+    output_path = os.path.join(project_root, "docx_sum", "docx_summary.json")
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(result_json)
-    print("已将摘要和全部内容输出到 docx_sum/docx_summary.json 文件。") 
+    print(f"已将摘要和全部内容输出到 {output_path} 文件。") 

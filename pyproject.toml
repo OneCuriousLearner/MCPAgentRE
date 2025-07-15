@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "aiohttp>=3.12.8",
+    "python-docx>=1.1.2",
     "faiss-cpu>=1.11.0",
     "faker>=37.4.0",
     "mcp[cli]>=1.9.2",
