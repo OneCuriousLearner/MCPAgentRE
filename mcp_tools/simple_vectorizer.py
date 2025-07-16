@@ -94,6 +94,12 @@ def load_vector_database(vector_db_path: str = "local_data/vector_data/data_vect
     if _GLOBAL_INDEX_CACHE is not None and _GLOBAL_METADATA_CACHE is not None:
         return _GLOBAL_INDEX_CACHE, _GLOBAL_METADATA_CACHE
     
+    # 如果不是绝对路径，转换为相对于项目根目录的路径
+    if not os.path.isabs(vector_db_path):
+        current_file = Path(__file__).absolute()
+        project_root = current_file.parent.parent
+        vector_db_path = str(project_root / vector_db_path)
+    
     try:
         import faiss
         
@@ -123,6 +129,12 @@ async def simple_vectorize_data(chunk_size: int = 10) -> dict:
     """简化的向量化函数"""
     try:
         data_file_path = "local_data/msg_from_fetcher.json"
+        
+        # 如果不是绝对路径，转换为相对于项目根目录的路径
+        if not os.path.isabs(data_file_path):
+            current_file = Path(__file__).absolute()
+            project_root = current_file.parent.parent
+            data_file_path = str(project_root / data_file_path)
         
         if not os.path.exists(data_file_path):
             return {
@@ -208,6 +220,13 @@ async def simple_vectorize_data(chunk_size: int = 10) -> dict:
         
         # 保存
         vector_db_path = "local_data/vector_data/data_vector"
+        
+        # 如果不是绝对路径，转换为相对于项目根目录的路径
+        if not os.path.isabs(vector_db_path):
+            current_file = Path(__file__).absolute()
+            project_root = current_file.parent.parent
+            vector_db_path = str(project_root / vector_db_path)
+        
         os.makedirs(os.path.dirname(vector_db_path), exist_ok=True)
         
         faiss.write_index(index, f"{vector_db_path}.index")

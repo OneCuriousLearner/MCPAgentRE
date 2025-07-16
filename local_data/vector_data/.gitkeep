@@ -1,0 +1,2 @@
+# This file ensures the vector_data directory is tracked by git
+# The directory contains vector database files that are generated locally

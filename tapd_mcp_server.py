@@ -12,6 +12,7 @@ from mcp_tools.fake_tapd_gen import generate as fake_generate    # 导入TAPD数
 from mcp_tools.context_optimizer import build_overview    # 导入上下文优化器
 from mcp_tools.docx_summarizer import summarize_docx as _summarize_docx
 from mcp_tools.word_frequency_analyzer import analyze_tapd_word_frequency    # 导入词频分析器
+from mcp_tools.data_preprocessor import preprocess_description_field, preview_description_cleaning    # 导入数据预处理工具
 
 # 初始化MCP服务器
 mcp = FastMCP("tapd")
@@ -603,6 +604,118 @@ async def analyze_word_frequency(
             "status": "error",
             "message": f"词频分析失败：{str(e)}",
             "suggestion": "请检查数据文件是否存在，建议先调用 get_tapd_data 工具获取数据"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def preprocess_tapd_description(
+    data_file_path: str = "local_data/msg_from_fetcher.json",
+    output_file_path: str = "local_data/preprocessed_data.json",
+    use_api: bool = True,
+    process_documents: bool = False,
+    process_images: bool = False
+) -> str:
+    """
+    预处理TAPD数据的description字段，清理HTML样式并使用AI优化内容
+    
+    功能描述:
+        - 清理description字段中的HTML样式信息（margin、padding、color等无用属性）
+        - 保留有意义的文字内容、超链接和图片地址
+        - 使用DeepSeek API对内容进行准确复述，压缩冗余信息
+        - 提取腾讯文档链接和图片路径信息
+        - 为未来的文档内容提取和OCR识别预留接口
+        
+    参数:
+        data_file_path (str): 输入数据文件路径，默认"local_data/msg_from_fetcher.json"
+        output_file_path (str): 输出文件路径，默认"local_data/preprocessed_data.json"
+        use_api (bool): 是否使用DeepSeek API进行内容复述，默认True
+        process_documents (bool): 是否处理腾讯文档链接（预留功能），默认False
+        process_images (bool): 是否处理图片内容（预留功能），默认False
+        
+    返回:
+        str: 处理结果的JSON字符串，包含统计信息
+        
+    处理效果:
+        - 原始HTML长度通常可压缩60-80%
+        - 保留所有关键业务信息和技术细节
+        - 提升后续向量化和搜索的准确性
+        - 减少token消耗，提高AI处理效率
+        
+    使用场景:
+        - 获取TAPD数据后的第一步预处理
+        - 为词频分析和向量化准备清洁数据
+        - 优化AI分析和报告生成的输入质量
+        
+    注意事项:
+        - 需要设置DS_KEY环境变量（DeepSeek API密钥）
+        - 建议先使用preview_description_cleaning预览效果
+        - 处理大量数据时可能需要较长时间
+    """
+    try:
+        result = await preprocess_description_field(
+            data_file_path=data_file_path,
+            output_file_path=output_file_path,
+            use_api=use_api,
+            process_documents=process_documents,
+            process_images=process_images
+        )
+        return result
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"数据预处理失败：{str(e)}",
+            "suggestion": "请检查数据文件是否存在，API密钥是否正确配置"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+def preview_tapd_description_cleaning(
+    data_file_path: str = "local_data/msg_from_fetcher.json",
+    item_count: int = 3
+) -> str:
+    """
+    预览TAPD数据description字段清理效果，不实际修改数据
+    
+    功能描述:
+        - 展示HTML样式清理前后的对比效果
+        - 统计压缩比例和提取的链接、图片信息
+        - 帮助用户了解预处理效果和决定参数设置
+        - 不调用API，仅展示样式清理效果
+        
+    参数:
+        data_file_path (str): 数据文件路径，默认"local_data/msg_from_fetcher.json"
+        item_count (int): 预览的条目数量，默认3条
+        
+    返回:
+        str: 预览结果的JSON字符串
+        
+    预览信息包括:
+        - 原始内容和清理后内容的长度对比
+        - 内容预览（前200字符）
+        - 提取的文档链接和图片路径列表
+        - 每个条目的基本信息（ID、标题等）
+        
+    使用场景:
+        - 在正式预处理前评估效果
+        - 调试和优化清理规则
+        - 了解数据质量和复杂度
+        
+    注意事项:
+        - 此工具不会修改原始数据
+        - 不需要API密钥，可安全使用
+        - 建议在大批量处理前先预览
+    """
+    try:
+        result = preview_description_cleaning(
+            data_file_path=data_file_path,
+            item_count=item_count
+        )
+        return result
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"预览失败：{str(e)}",
+            "suggestion": "请检查数据文件是否存在"
         }
         return json.dumps(error_result, ensure_ascii=False, indent=2)
 

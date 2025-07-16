@@ -241,14 +241,20 @@ if __name__ == "__main__":
     import argparse, pathlib
 
     ap = argparse.ArgumentParser(description="Generate TAPD overview via online LLM (DeepSeek/Qwen)")
-    ap.add_argument("-f", "--file", default="../local_data/fake_tapd.json", help="path to local TAPD json for smoke test")
+    ap.add_argument("-f", "--file", default="local_data/fake_tapd.json", help="path to local TAPD json for smoke test")
     ap.add_argument("--model", default=API_MODEL_DEFAULT, help="LLM model name – e.g. deepseek-reasoner / qwen:chat")
     ap.add_argument("--endpoint", default=API_ENDPOINT_DEFAULT, help="Chat completion endpoint URL")
     ap.add_argument("--offline", action="store_true", help="return dummy summary (no LLM call)")
     ap.add_argument("--debug", action="store_true", help="print counters")
     args = ap.parse_args()
 
-    data = json.loads(pathlib.Path(args.file).read_text(encoding='utf-8'))
+    # 处理文件路径：如果不是绝对路径，转换为相对于项目根目录的路径
+    file_path = args.file
+    if not pathlib.Path(file_path).is_absolute():
+        base_dir = pathlib.Path(__file__).parent.parent
+        file_path = str(base_dir / file_path)
+
+    data = json.loads(pathlib.Path(file_path).read_text(encoding='utf-8'))
     half = len(data) // 2
     stories, bugs = data[:half], data[half:]
 

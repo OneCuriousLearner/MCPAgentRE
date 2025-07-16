@@ -22,22 +22,29 @@ class TAPDWordFrequencyAnalyzer:
         参数:
             data_file_path (str): TAPD数据文件路径
         """
-        self.data_file_path = data_file_path
+        # 如果不是绝对路径，转换为相对于项目根目录的路径
+        if not os.path.isabs(data_file_path):
+            import pathlib
+            base_dir = pathlib.Path(__file__).parent.parent
+            self.data_file_path = str(base_dir / data_file_path)
+        else:
+            self.data_file_path = data_file_path
         
-        # 停用词列表 - 过滤掉无意义的词汇
+        # 停用词列表 - 只过滤真正无意义的高频词汇
+        # 保留了所有对TAPD缺陷和需求分析有价值的词汇
         self.stop_words = {
+            # 基础语言连词和代词
             '的', '了', '在', '是', '我', '你', '他', '她', '它', '们', '这', '那', '与', '和', '或',
             '但', '而', '因为', '所以', '如果', '就', '都', '很', '还', '也', '不', '没有', '有',
-            '能', '会', '要', '可以', '需要', '应该', '可能', '已经', '正在', '将要', '一个', '一些',
-            '其他', '其它', '等等', '等', '及', '以及', '包括', '含有', '具有', '进行', '实现',
-            '完成', '处理', '操作', '执行', '运行', '使用', '采用', '通过', '基于', '根据',
-            '按照', '依据', '相关', '关于', '对于', '针对', '关联', '涉及', '影响', '导致',
-            '产生', '出现', '发生', '存在', '位于', '来自', '来源', '来源于', '属于', '归属',
-            '当前', '目前', '现在', '当时', '之前', '之后', '以前', '以后', '最后', '最终',
-            '首先', '然后', '接着', '最后', '同时', '此外', '另外', '除了', '除此之外',
-            '问题', '解决', '修复', 'bug', 'Bug', 'BUG', '缺陷', '错误', '异常', '故障',
-            '需求', '功能', '特性', '模块', '系统', '平台', '服务', '接口', 'api', 'API',
-            '用户', '客户', '管理员', '开发', '测试', '运维', '产品', '业务', '流程', '步骤'
+            '能', '会', '要', '可以', '应该', '可能', '已经', '正在', '将要', '一个', '一些',
+            
+            # 通用描述词汇（保留技术和业务相关词汇）
+            '其他', '其它', '等等', '等', '及', '以及', '包括', '含有', '具有',
+            '按照', '依据', '来自', '来源', '来源于', '属于', '归属',
+            '首先', '然后', '接着', '同时', '此外', '另外', '除了', '除此之外',
+            
+            # 时间相关的通用词汇
+            '当前', '目前', '现在', '当时', '之前', '之后', '以前', '以后', '最后', '最终'
         }
         
         # 关键字段列表
@@ -265,31 +272,55 @@ class TAPDWordFrequencyAnalyzer:
             Dict[str, List[str]]: 分类后的关键词
         """
         categories = {
-            "技术相关": [],
-            "业务功能": [],
-            "状态描述": [],
+            "问题缺陷类": [],
+            "需求功能类": [],
+            "技术实现类": [],
+            "角色人员类": [],
+            "业务流程类": [],
+            "状态描述类": [],
             "其他": []
         }
         
-        # 技术相关关键词
-        tech_keywords = {'接口', '数据库', '缓存', '算法', '框架', '代码', '配置', '部署', 
-                        '服务器', '网络', '安全', '性能', '优化', '架构', '设计'}
+        # 问题缺陷相关关键词
+        defect_keywords = {'问题', '解决', '修复', 'bug', 'Bug', 'BUG', '缺陷', '错误', '异常', '故障',
+                          '失败', '崩溃', '阻塞', '影响', '风险', '漏洞'}
         
-        # 业务功能关键词
-        business_keywords = {'订单', '支付', '用户', '商品', '购物车', '物流', '评价', 
-                           '客服', '营销', '推荐', '搜索', '登录', '注册', '认证'}
+        # 需求功能相关关键词
+        requirement_keywords = {'需求', '功能', '特性', '优化', '改进', '新增', '删除', '变更',
+                              '升级', '扩展', '配置', '设置'}
         
-        # 状态描述关键词
+        # 技术实现相关关键词
+        tech_keywords = {'模块', '系统', '平台', '服务', '接口', 'api', 'API', '数据库', '缓存',
+                        '算法', '框架', '代码', '部署', '服务器', '网络', '安全', '性能', '架构',
+                        '进行', '实现', '完成', '处理', '操作', '执行', '运行', '使用', '采用',
+                        '通过', '基于', '根据', '相关', '关于', '对于', '针对', '关联', '涉及',
+                        '产生', '出现', '发生', '存在', '位于'}
+        
+        # 角色人员相关关键词
+        role_keywords = {'用户', '客户', '管理员', '开发', '测试', '运维', '产品', '设计师',
+                        '分析师', '架构师', '项目经理'}
+        
+        # 业务流程相关关键词
+        process_keywords = {'业务', '流程', '步骤', '环节', '阶段', '过程', '方案', '策略',
+                          '规则', '逻辑', '条件', '判断', '验证', '审核'}
+        
+        # 状态描述相关关键词
         status_keywords = {'完成', '待处理', '进行中', '暂停', '取消', '成功', '失败', 
-                         '正常', '异常', '有效', '无效', '开启', '关闭'}
+                         '正常', '异常', '有效', '无效', '开启', '关闭', '启用', '禁用'}
         
         for word, freq in word_freq_pairs:
-            if any(keyword in word for keyword in tech_keywords):
-                categories["技术相关"].append(word)
-            elif any(keyword in word for keyword in business_keywords):
-                categories["业务功能"].append(word)
+            if any(keyword in word for keyword in defect_keywords):
+                categories["问题缺陷类"].append(word)
+            elif any(keyword in word for keyword in requirement_keywords):
+                categories["需求功能类"].append(word)
+            elif any(keyword in word for keyword in tech_keywords):
+                categories["技术实现类"].append(word)
+            elif any(keyword in word for keyword in role_keywords):
+                categories["角色人员类"].append(word)
+            elif any(keyword in word for keyword in process_keywords):
+                categories["业务流程类"].append(word)
             elif any(keyword in word for keyword in status_keywords):
-                categories["状态描述"].append(word)
+                categories["状态描述类"].append(word)
             else:
                 categories["其他"].append(word)
         

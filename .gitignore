@@ -21,6 +21,9 @@ wheels/
 # Private infomation
 local_data/*
 !local_data/.gitkeep
+!local_data/vector_data/
+local_data/vector_data/*
+!local_data/vector_data/.gitkeep
 knowledge_documents/*
 !knowledge_documents/.gitkeep
 api.txt

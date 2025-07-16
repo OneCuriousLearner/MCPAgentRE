@@ -254,7 +254,7 @@ def fake_bug_B():
 
 # ——— 入口 ———
 def generate(n_story_A=300, n_story_B=200,
-             n_bug_A=400, n_bug_B=300, path="../local_data/msg_from_fetcher.json"):
+             n_bug_A=400, n_bug_B=300, path="local_data/msg_from_fetcher.json"):
     """
     生成TAPD测试数据
     
@@ -265,6 +265,11 @@ def generate(n_story_A=300, n_story_B=200,
         n_bug_B: 详细缺陷数量
         path: 输出文件路径
     """
+    # 如果不是绝对路径，转换为相对于项目根目录的路径
+    if not pathlib.Path(path).is_absolute():
+        base_dir = pathlib.Path(__file__).parent.parent
+        path = str(base_dir / path)
+    
     # 生成需求和缺陷数据（已经包含完整的字段结构）
     stories = [fake_demand_A() for _ in range(n_story_A)] + [fake_demand_B() for _ in range(n_story_B)]
     bugs = [fake_bug_A() for _ in range(n_bug_A)] + [fake_bug_B() for _ in range(n_bug_B)]

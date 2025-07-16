@@ -27,7 +27,9 @@
 
 #### 数据预处理工具
 
-* **`docx_summarizer.py`** - 提取 .docx 文档中的文本、图片和表格信息，并生成摘要（仍在开发中...）
+* **`preprocess_tapd_description(data_file_path, output_file_path, use_api, process_documents, process_images)`** - 清理TAPD数据中description字段的HTML样式，提取文字、链接、图片内容并通过DeepSeek API优化表达（需要配置 DeepSeek API 密钥），大幅压缩数据长度同时保留关键信息【仍在开发中...】
+* **`preview_tapd_description_cleaning(data_file_path, item_count)`** - 预览description字段清理效果，展示压缩比例和提取信息，不修改原始数据
+* **`docx_summarizer.py`** - 提取 .docx 文档中的文本、图片和表格信息，并生成摘要【仍在开发中...】
 
 #### 向量化与搜索工具
 
@@ -42,8 +44,6 @@
 
 * **`generate_fake_tapd_data(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)`** - 生成模拟 TAPD 数据，用于测试和演示（若不指明地址，使用后可能会覆盖本地数据，若需要来自 API 的正确数据，请再次调用数据获取工具）
 * **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API 密钥）
-  * `use_local_data=True`（默认）：使用本地数据文件进行分析，适合测试和离线分析
-  * `use_local_data=False`：从TAPD API获取最新数据进行分析，适合实时数据分析
 * **`analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)`** - 分析TAPD数据的词频分布，生成关键词词云统计，为搜索功能提供精准关键词建议
 
 #### 示例工具
@@ -58,13 +58,14 @@
 MCPAgentRE\
 ├─knowledge_documents\      # 知识文档（Git 提交时会被忽略）
 │  └─DeepSeek API 环境变量配置指南.md
-├─documents_data\          # 文档数据目录
+├─documents_data\          # 文档数据目录（暂时，最终将替换至 local_data）
 │  ├─docx_data\               # 存储 .docx 文档的目录
 │  ├─excel_data\              # 存储 Excel 表格的目录
 │  └─pictures_data\           # 存储图片的目录
 ├─local_data\               # 本地数据目录，用于存储从 TAPD 获取的数据、数据库等（Git 提交时会被忽略）
 │  ├─msg_from_fetcher.json      # 从 TAPD 获取的需求和缺陷数据
 │  ├─fake_tapd.json             # 假数据生成器生成的模拟 TAPD 数据
+│  ├─preprocessed_data.json      # 预处理后的 TAPD 数据
 │  └─vector_data\               # 向量数据库文件目录
 │     ├─data_vector.index          # 向量数据库索引文件
 │     ├─data_vector.metadata.pkl   # 向量数据库元数据文件
@@ -76,6 +77,7 @@ MCPAgentRE\
 │  ├─docx_summarizer.py          # 文档摘要生成器，提取 .docx 文档内容
 │  ├─fake_tapd_gen.py           # TAPD 假数据生成器，用于测试和演示
 │  ├─word_frequency_analyzer.py  # 词频分析工具，生成关键词词云统计
+│  ├─data_preprocessor.py        # 数据预处理工具，清理和优化 TAPD 数据
 │  └─example_tool.py            # 示例工具
 ├─models\                   # 模型目录
 ├─test\                     # 测试目录
@@ -153,9 +155,9 @@ MCPAgentRE\
   * WORKSPACE_ID：TAPD项目ID，可通过TAPD平台获取
   * 提交Git时会根据`.gitignore`忽略`api.txt`文件，确保敏感信息不被泄露
 
-2. **智能摘要API配置（可选）**
+2. **DeepSeek API配置（可选）**
 
-如果您需要使用智能摘要功能（`generate_tapd_overview`工具），需要配置DeepSeek API密钥：
+如果您需要使用智能摘要功能（`generate_tapd_overview`）或 description 优化功能（`preprocess_tapd_description`），需要配置DeepSeek API密钥：
 
 * **获取API密钥**：访问 [DeepSeek 开放平台](https://platform.deepseek.com/) 注册并获取API密钥
 
