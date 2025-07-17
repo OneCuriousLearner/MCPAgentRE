@@ -34,3 +34,6 @@ models/*
 
 # MarkDown files
 !knowledge_documents/DeepSeek API 环境变量配置指南.md
+
+# Claude configuration
+CLAUDE.md
