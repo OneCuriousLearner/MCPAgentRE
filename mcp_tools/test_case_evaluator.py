@@ -183,11 +183,48 @@ class TestCaseEvaluator:
         # 上下文管理：总context = 请求tokens + 响应tokens ≈ 2倍请求tokens
         # 为了安全，设置请求tokens为总上下文的30%，响应tokens为60%，留20%缓冲
         self.max_context_tokens = max_context_tokens
-        self.max_request_tokens = int(max_context_tokens * 0.3)  # 30%用于请求
-        self.max_response_tokens = int(max_context_tokens * 0.6)  # 60%用于响应
+        
+        # 评估提示词模板
+        self.evaluation_prompt_template = """请根据给出的评分规则，为用例数据打分，并给出优化建议。**除此以外不需要任何分析或解释**。
+
+评分规则：
+
+| 用例要素 | 是否必须 | 要求                                                                                                              |
+| ---- | ---- | --------------------------------------------------------------------------------------------------------------- |
+| 关联需求 | 是    | 1. 用例应当与父需求单关联                                                                                                     |
+| 用例标题 | 是    | 1. 标题长度不超过 40 字符，且描述测试功能点<br>2. 语言清晰，简洁易懂<br>3. 避免在用例评分中出现步骤                                                    |
+| 前置条件 | 否    | 1. 列出所有前提：账号类型，灰度等<br>2. 避免过度复杂：每个条件不超过 2 项描述，必要时分点列出                                                           |
+| 测试步骤 | 是    | 1. 步骤用编号链接：使用 1、2、3... 结构，每步描述一个动作<br>2. 步骤具体化：包含用户操作、输入值和上下文说明<br>3. 步骤数合理：不超过10步，否则需分解为多个用例。<br>4. 避免步骤中带有检查点 |
+| 预期结果 | 是    | 1. 描述明确结果：明确的结果，确切的检查<br>2. 避免模棱两可的词（如功能正常，跟现网一致等）                                                              |
+| 优先级  | 是    | 1. 等级划分标准：采用 P0-P2<br>2. 明确标注：每个用例必须有优先级字段。<br>3. 优先级比例：P0占比应在10%~20%之间，P1占比60%~70%，P2占比10~30%                  |
+
+评分满分为 10 分，未提供必须提供的字段扣一分，每有一点要求未满足扣一分，最低 0 分。
+对低于 10 分的要素给出简要的建议。由于数据量较大，给出的每一条建议都应当简洁凝练。
+
+对于每一条用例，在你的回答中评分与建议的格式如下（你的回答只需提供此表格，应严格按照此标准执行）：
+
+| 用例信息                           | 分数  | 改进建议                |
+| ------------------------------ | --- | ------------------- |
+| **用例ID**<br>{test_case_id}     | -   | -                   |
+| **用例标题**<br>{test_case_title}  | 8   | 改为“验证错误密码登录的失败提示”   |
+| **前置条件**<br>{prerequisites}    | 8   | 补充系统版本要求            |
+| **测试步骤**<br>{step_description} | 6   | 步骤3增加“等待3秒”         |
+| **预期结果**<br>{expected_result}  | 7   | 明确提示位置（如：输入框下方红色文字） |
+
+测试用例：{test_cases_json}"""
+        
+        # 计算提示词模板的基础token数量（不包括动态内容）
+        template_base = self.evaluation_prompt_template.replace('{test_case_id}', '').replace('{test_case_title}', '').replace('{prerequisites}', '').replace('{step_description}', '').replace('{expected_result}', '').replace('{test_cases_json}', '')
+        self.template_base_tokens = self.token_counter.count_tokens(template_base)
+        
+        # 重新计算token配置，将模板tokens纳入考虑
+        available_tokens = max_context_tokens - self.template_base_tokens  # 减去模板占用的tokens
+        self.max_request_tokens = int(available_tokens * 0.3)  # 30%用于请求（用例数据部分）
+        self.max_response_tokens = int(available_tokens * 0.6)  # 60%用于响应
         self.token_threshold = int(self.max_request_tokens * 0.8)  # 80%阈值，确保安全
         
-        print(f"Token配置: 总上下文={max_context_tokens}, 请求限制={self.max_request_tokens}, 响应限制={self.max_response_tokens}, 请求阈值={self.token_threshold}")
+        print(f"Token配置: 总上下文={max_context_tokens}, 模板基础tokens={self.template_base_tokens}, 可用tokens={available_tokens}")
+        print(f"请求限制={self.max_request_tokens}, 响应限制={self.max_response_tokens}, 请求阈值={self.token_threshold}")
         
         # 评估提示词模板
         self.evaluation_prompt_template = """请根据给出的评分规则，为用例数据打分，并给出优化建议。**除此以外不需要任何分析或解释**。
