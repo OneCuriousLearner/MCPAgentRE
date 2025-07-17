@@ -12,6 +12,8 @@ from mcp_tools.context_optimizer import build_overview    # 导入上下文优�
 from mcp_tools.docx_summarizer import summarize_docx as _summarize_docx
 from mcp_tools.word_frequency_analyzer import analyze_tapd_word_frequency    # 导入词频分析器
 from mcp_tools.data_preprocessor import preprocess_description_field, preview_description_cleaning    # 导入数据预处理工具
+from mcp_tools.scoring_config_manager import get_config_manager    # 导入配置管理器
+from mcp_tools.testcase_quality_scorer import get_quality_scorer    # 导入质量评分器
 
 # 初始化MCP服务器
 mcp = FastMCP("tapd")
@@ -612,6 +614,453 @@ def preview_tapd_description_cleaning(
             "status": "error",
             "message": f"预览失败：{str(e)}",
             "suggestion": "请检查数据文件是否存在"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def get_scoring_config() -> str:
+    """
+    获取当前的测试用例质量评分配置
+    
+    功能描述:
+        - 返回当前评分规则配置的详细信息
+        - 包括各项评分权重、阈值和评分范围
+        - 用于了解当前的评分标准
+        
+    返回:
+        str: 配置信息的JSON字符串
+        
+    配置信息包括:
+        - 标题长度限制和权重
+        - 前置条件数量限制和权重
+        - 测试步骤要求和权重
+        - 预期结果要求和权重
+        - 优先级设置和权重
+        - 创建和更新时间
+        
+    使用场景:
+        - 查看当前评分标准
+        - 配置调整前的参考
+        - 评分结果分析和解释
+    """
+    try:
+        config_manager = await get_config_manager()
+        config = await config_manager.load_config()
+        
+        result = {
+            "status": "success",
+            "config": config_manager._config_to_dict(config),
+            "summary": await config_manager.get_config_summary()
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"获取配置失败：{str(e)}",
+            "suggestion": "请检查配置文件是否正确"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def configure_scoring_rules(
+    rule_name: str,
+    rule_config: str,
+    validate_only: bool = False
+) -> str:
+    """
+    配置测试用例质量评分规则
+    
+    功能描述:
+        - 支持自定义各项评分规则的参数
+        - 可以单独配置标题、前置条件、测试步骤、预期结果、优先级规则
+        - 提供配置验证功能
+        - 支持权重调整和阈值设置
+        
+    参数:
+        rule_name (str): 规则名称，可选值：
+            - "title": 标题评分规则
+            - "precondition": 前置条件评分规则
+            - "steps": 测试步骤评分规则
+            - "expected_result": 预期结果评分规则
+            - "priority": 优先级评分规则
+        rule_config (str): 规则配置的JSON字符串
+        validate_only (bool): 是否仅验证配置，不保存，默认False
+        
+    返回:
+        str: 配置结果的JSON字符串
+        
+    配置示例:
+        标题规则: {"max_length": 50, "min_length": 5, "weight": 0.25}
+        前置条件: {"max_count": 3, "weight": 0.1}
+        测试步骤: {"min_steps": 2, "max_steps": 8, "weight": 0.3}
+        
+    使用场景:
+        - 根据团队标准调整评分规则
+        - 适配不同项目的质量要求
+        - 优化评分算法的准确性
+    """
+    try:
+        # 解析规则配置
+        try:
+            config_data = json.loads(rule_config)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "status": "error",
+                "message": f"JSON格式错误：{str(e)}",
+                "suggestion": "请检查JSON格式是否正确"
+            }, ensure_ascii=False, indent=2)
+        
+        config_manager = await get_config_manager()
+        
+        # 验证配置
+        if rule_name in ["title", "precondition", "steps", "expected_result", "priority"]:
+            # 构建完整配置进行验证
+            current_config = await config_manager.load_config()
+            test_config = config_manager._config_to_dict(current_config)
+            test_config[f"{rule_name}_rule"] = config_data
+            
+            validation_result = await config_manager.validate_config(test_config)
+            
+            if not validation_result["valid"]:
+                return json.dumps({
+                    "status": "error",
+                    "message": "配置验证失败",
+                    "errors": validation_result["errors"],
+                    "warnings": validation_result["warnings"]
+                }, ensure_ascii=False, indent=2)
+        else:
+            return json.dumps({
+                "status": "error",
+                "message": f"不支持的规则类型：{rule_name}",
+                "suggestion": "支持的规则类型：title, precondition, steps, expected_result, priority"
+            }, ensure_ascii=False, indent=2)
+        
+        # 如果仅验证，返回验证结果
+        if validate_only:
+            return json.dumps({
+                "status": "success",
+                "message": "配置验证通过",
+                "rule_name": rule_name,
+                "config": config_data,
+                "validation": validation_result
+            }, ensure_ascii=False, indent=2)
+        
+        # 更新配置
+        await config_manager.update_rule(rule_name, config_data)
+        
+        result = {
+            "status": "success",
+            "message": f"成功更新{rule_name}规则",
+            "rule_name": rule_name,
+            "new_config": config_data,
+            "validation": validation_result,
+            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"配置更新失败：{str(e)}",
+            "suggestion": "请检查配置参数是否正确"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def reset_scoring_config() -> str:
+    """
+    重置评分配置为默认值
+    
+    功能描述:
+        - 将所有评分规则重置为系统默认值
+        - 清除所有自定义配置
+        - 恢复标准的评分权重和阈值
+        
+    返回:
+        str: 重置结果的JSON字符串
+        
+    默认配置包括:
+        - 标题：最大40字符，权重0.2
+        - 前置条件：最大2项，权重0.15
+        - 测试步骤：1-10步，权重0.25
+        - 预期结果：5-200字符，权重0.25
+        - 优先级：P0-P3，权重0.15
+        
+    使用场景:
+        - 配置出现问题时恢复默认
+        - 重新开始配置调整
+        - 标准化评分规则
+    """
+    try:
+        config_manager = await get_config_manager()
+        await config_manager.reset_to_default()
+        
+        # 获取重置后的配置
+        new_config = await config_manager.load_config()
+        
+        result = {
+            "status": "success",
+            "message": "评分配置已重置为默认值",
+            "config": config_manager._config_to_dict(new_config),
+            "reset_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"重置配置失败：{str(e)}",
+            "suggestion": "请检查配置文件权限"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def validate_scoring_config(config_json: str) -> str:
+    """
+    验证评分配置的有效性
+    
+    功能描述:
+        - 验证配置JSON格式和数据有效性
+        - 检查权重总和是否合理
+        - 检查数值范围是否正确
+        - 提供配置优化建议
+        
+    参数:
+        config_json (str): 完整的评分配置JSON字符串
+        
+    返回:
+        str: 验证结果的JSON字符串
+        
+    验证项目:
+        - JSON格式正确性
+        - 权重总和接近1.0
+        - 数值范围合理性
+        - 必需字段完整性
+        
+    使用场景:
+        - 配置更新前的预检查
+        - 配置文件导入验证
+        - 配置质量评估
+    """
+    try:
+        # 解析JSON
+        try:
+            config_data = json.loads(config_json)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "status": "error",
+                "message": f"JSON格式错误：{str(e)}",
+                "suggestion": "请检查JSON格式是否正确"
+            }, ensure_ascii=False, indent=2)
+        
+        config_manager = await get_config_manager()
+        validation_result = await config_manager.validate_config(config_data)
+        
+        result = {
+            "status": "success" if validation_result["valid"] else "error",
+            "message": "配置验证完成",
+            "validation_result": validation_result,
+            "validated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"验证失败：{str(e)}",
+            "suggestion": "请检查配置格式"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def score_testcase_quality(
+    testcase_data: str,
+    return_details: bool = True
+) -> str:
+    """
+    对单个测试用例进行质量评分
+    
+    功能描述:
+        - 基于当前配置规则对测试用例进行质量评分
+        - 分析标题、前置条件、测试步骤、预期结果、优先级
+        - 提供详细的分项评分和改进建议
+        - 支持批量评分处理
+        
+    参数:
+        testcase_data (str): 测试用例数据的JSON字符串
+        return_details (bool): 是否返回详细评分信息，默认True
+        
+    返回:
+        str: 评分结果的JSON字符串
+        
+    测试用例数据格式:
+        {
+            "id": "用例ID",
+            "title": "测试用例标题",
+            "precondition": "前置条件",
+            "steps": "测试步骤",
+            "expected_result": "预期结果",
+            "priority": "优先级"
+        }
+        
+    返回结果包括:
+        - 总分和等级
+        - 分项详细评分
+        - 改进建议列表
+        - 评分时间
+        
+    使用场景:
+        - 测试用例质量检查
+        - 用例编写指导
+        - 质量标准验证
+    """
+    try:
+        # 解析测试用例数据
+        try:
+            testcase = json.loads(testcase_data)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "status": "error",
+                "message": f"测试用例数据格式错误：{str(e)}",
+                "suggestion": "请检查JSON格式是否正确"
+            }, ensure_ascii=False, indent=2)
+        
+        # 获取评分器并进行评分
+        scorer = await get_quality_scorer()
+        score_result = await scorer.score_single_testcase(testcase)
+        
+        # 根据参数决定返回详细信息还是简化信息
+        if return_details:
+            result = {
+                "status": "success",
+                "score_result": score_result
+            }
+        else:
+            result = {
+                "status": "success",
+                "testcase_id": score_result["testcase_id"],
+                "total_score": score_result["total_score"],
+                "score_level": score_result["score_level"],
+                "improvement_count": len(score_result["improvement_suggestions"])
+            }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"评分失败：{str(e)}",
+            "suggestion": "请检查测试用例数据格式"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def score_testcases_batch(
+    testcases_data: str,
+    batch_size: int = 10,
+    return_summary_only: bool = False
+) -> str:
+    """
+    批量评分测试用例
+    
+    功能描述:
+        - 对多个测试用例进行批量质量评分
+        - 支持分批处理，避免内存过载
+        - 提供统计汇总和分布分析
+        - 生成批量改进建议
+        
+    参数:
+        testcases_data (str): 测试用例数组的JSON字符串
+        batch_size (int): 每批处理的用例数量，默认10
+        return_summary_only (bool): 是否仅返回汇总信息，默认False
+        
+    返回:
+        str: 批量评分结果的JSON字符串
+        
+    输入数据格式:
+        [
+            {
+                "id": "用例ID",
+                "title": "测试用例标题",
+                "precondition": "前置条件",
+                "steps": "测试步骤",
+                "expected_result": "预期结果",
+                "priority": "优先级"
+            },
+            ...
+        ]
+        
+    返回结果包括:
+        - 处理统计信息
+        - 平均分和分数分布
+        - 详细评分结果（可选）
+        - 批量改进建议汇总
+        
+    使用场景:
+        - 大批量测试用例质量检查
+        - 团队用例质量评估
+        - 质量改进计划制定
+    """
+    try:
+        # 解析测试用例数组
+        try:
+            testcases = json.loads(testcases_data)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "status": "error",
+                "message": f"测试用例数据格式错误：{str(e)}",
+                "suggestion": "请检查JSON格式是否正确"
+            }, ensure_ascii=False, indent=2)
+        
+        if not isinstance(testcases, list):
+            return json.dumps({
+                "status": "error",
+                "message": "测试用例数据必须是数组格式",
+                "suggestion": "请提供测试用例数组"
+            }, ensure_ascii=False, indent=2)
+        
+        if len(testcases) == 0:
+            return json.dumps({
+                "status": "error",
+                "message": "测试用例数组为空",
+                "suggestion": "请提供至少一个测试用例"
+            }, ensure_ascii=False, indent=2)
+        
+        # 获取评分器并进行批量评分
+        scorer = await get_quality_scorer()
+        batch_result = await scorer.score_batch_testcases(testcases, batch_size)
+        
+        # 根据参数决定返回详细信息还是汇总信息
+        if return_summary_only:
+            result = {
+                "status": "success",
+                "summary": {
+                    "total_count": batch_result["total_count"],
+                    "success_count": batch_result["success_count"],
+                    "error_count": batch_result["error_count"],
+                    "average_score": batch_result["average_score"],
+                    "score_distribution": batch_result["score_distribution"],
+                    "processed_at": batch_result["processed_at"]
+                }
+            }
+        else:
+            result = {
+                "status": "success",
+                "batch_result": batch_result
+            }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"批量评分失败：{str(e)}",
+            "suggestion": "请检查测试用例数据格式和系统资源"
         }
         return json.dumps(error_result, ensure_ascii=False, indent=2)
 
