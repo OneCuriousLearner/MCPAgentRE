@@ -11,7 +11,7 @@ import os
 # 添加父目录到Python路径，以便导入模块
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from mcp_tools.simple_vectorizer import simple_vectorize_data, simple_search_data, simple_get_db_info
+from mcp_tools.data_vectorizer import vectorize_tapd_data, search_tapd_data, get_vector_db_info
 
 async def quick_start():
     """快速启动向量化功能"""
@@ -29,13 +29,13 @@ async def quick_start():
     
     # 检查向量数据库状态
     print("\n🔍 检查向量数据库状态...")
-    db_info = await simple_get_db_info()
+    db_info = await get_vector_db_info()
     
     if db_info['status'] == 'not_found':
         print("📦 向量数据库不存在，开始初始化...")
         
         # 执行向量化
-        result = await simple_vectorize_data(chunk_size=10)
+        result = await vectorize_tapd_data(chunk_size=10)
         if result['status'] == 'success':
             print("✅ 向量化完成!")
             stats = result['stats']
@@ -63,7 +63,7 @@ async def quick_start():
     
     for query in demo_queries:
         print(f"\n🔎 搜索: '{query}'")
-        search_result = await simple_search_data(query, 2)
+        search_result = await search_tapd_data(query, 2)
         
         if search_result['status'] == 'success':
             results = search_result['results']
@@ -71,7 +71,8 @@ async def quick_start():
             
             for i, result in enumerate(results, 1):
                 score = result['relevance_score']
-                chunk_type = result['chunk_type']
+                chunk_info = result['chunk_info']
+                chunk_type = chunk_info['item_type']
                 items = result['items']
                 
                 if items:
@@ -89,9 +90,7 @@ async def quick_start():
     print("      • vectorize_data - 向量化数据")
     print("      • search_data - 智能搜索")
     print("      • get_vector_info - 获取数据库信息")
-    print("\n   2. 运行综合测试:")
-    print("      python test\\test_comprehensive.py")
-    print("\n   3. 查看详细文档:")
+    print("\n   2. 查看详细文档:")
     print("      knowledge_documents\\TAPD数据向量化功能使用手册.md")
 
 if __name__ == "__main__":

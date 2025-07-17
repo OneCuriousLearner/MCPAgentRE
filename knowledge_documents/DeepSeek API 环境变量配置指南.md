@@ -52,8 +52,8 @@ source ~/.bashrc
 # API端点（默认: https://api.deepseek.com/v1）
 $env:DS_EP = "https://api.deepseek.com/v1"
 
-# 模型名称（默认: deepseek-reasoner）
-$env:DS_MODEL = "deepseek-reasoner"
+# 模型名称（默认: deepseek-chat）
+$env:DS_MODEL = "deepseek-chat"
 ```
 
 ### 4. 验证配置
@@ -101,7 +101,7 @@ A: 您可以在项目根目录创建`.env`文件：
 ```text
 DS_KEY=your-project-specific-key
 DS_EP=https://api.deepseek.com/v1
-DS_MODEL=deepseek-reasoner
+DS_MODEL=deepseek-chat
 ```
 
 ### 6. 安全注意事项

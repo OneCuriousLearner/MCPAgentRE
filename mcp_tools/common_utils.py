@@ -60,7 +60,7 @@ class APIManager:
     
     def __init__(self):
         self.endpoint = os.getenv("DS_EP", "https://api.deepseek.com/v1")
-        self.model = os.getenv("DS_MODEL", "deepseek-reasoner")
+        self.model = os.getenv("DS_MODEL", "deepseek-chat")  # 默认使用deepseek-chat
         self.api_key = os.getenv("DS_KEY")
         self._headers_cache: Optional[Dict[str, str]] = None
     
@@ -105,8 +105,22 @@ class APIManager:
 
         try:
             msg = js["choices"][0]["message"]
-            # DeepSeek‑Reasoner 把推理和最终回答分开；如果 content 为空则回退到 reasoning_content
-            text = (msg.get("content") or msg.get("reasoning_content") or "").strip()
+            
+            # 仅在使用deepseek-reasoner模型时才获取思考过程
+            if use_model == "deepseek-reasoner":
+                # DeepSeek-Reasoner 把推理和最终回答分开
+                content = msg.get("content", "").strip()
+                reasoning_content = msg.get("reasoning_content", "").strip()
+                
+                # 默认只返回最终回答content，不追加思考过程
+                text = content
+                
+                # 如果最终回答为空，则使用思考内容作为备选
+                if not text and reasoning_content:
+                    text = reasoning_content
+            else:
+                # 对于其他模型（如deepseek-chat），直接获取content
+                text = msg.get("content", "").strip()
             
             # 对于摘要生成等长文本任务，保留完整内容
             # 只有在max_tokens较小时（<100）才进行截断处理

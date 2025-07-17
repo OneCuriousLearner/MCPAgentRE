@@ -138,7 +138,7 @@ async def build_overview(
     since: str = "2025-01-01",
     until: str = "2025-12-31",
     max_total_tokens: int = 6000,
-    model: str = "deepseek-reasoner",
+    model: str = "deepseek-chat",
     endpoint: str = "https://api.deepseek.com/v1",
 ) -> Dict:
     """构建TAPD项目概览，支持时间范围过滤和智能摘要生成"""
@@ -245,7 +245,7 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser(description="Generate TAPD overview via online LLM (DeepSeek/Qwen)")
     ap.add_argument("-f", "--file", default="local_data/msg_from_fetcher.json", help="path to real TAPD data json file")
-    ap.add_argument("--model", default="deepseek-reasoner", help="LLM model name – e.g. deepseek-reasoner / qwen:chat")
+    ap.add_argument("--model", default="deepseek-chat", help="LLM model name – e.g. deepseek-chat / qwen:chat")
     ap.add_argument("--endpoint", default="https://api.deepseek.com/v1", help="Chat completion endpoint URL")
     ap.add_argument("--offline", action="store_true", help="return dummy summary (no LLM call)")
     ap.add_argument("--debug", action="store_true", help="print counters")

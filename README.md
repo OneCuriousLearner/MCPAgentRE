@@ -91,45 +91,47 @@
 
 ```text
 MCPAgentRE\
-├─knowledge_documents\      # 知识文档（Git 提交时会被忽略）
+├─knowledge_documents\        # 知识文档（Git 提交时会被忽略）
 │  └─DeepSeek API 环境变量配置指南.md
-├─documents_data\          # 文档数据目录（暂时，最终将替换至 local_data）
-│  ├─docx_data\               # 存储 .docx 文档的目录
-│  ├─excel_data\              # 存储 Excel 表格的目录
-│  └─pictures_data\           # 存储图片的目录
-├─local_data\               # 本地数据目录，用于存储从 TAPD 获取的数据、数据库等（Git 提交时会被忽略）
-│  ├─msg_from_fetcher.json      # 从 TAPD 获取的需求和缺陷数据
-│  ├─fake_tapd.json             # 假数据生成器生成的模拟 TAPD 数据
-│  ├─preprocessed_data.json      # 预处理后的 TAPD 数据
-│  └─vector_data\               # 向量数据库文件目录
-│     ├─data_vector.index          # 向量数据库索引文件
-│     ├─data_vector.metadata.pkl   # 向量数据库元数据文件
-│     └─data_vector.config.json    # 向量数据库配置文件
-├─mcp_tools\                # MCP 工具目录
-│  ├─data_vectorizer.py         # 高级向量化工具（完整版，适用于生产环境）
-│  ├─context_optimizer.py        # 上下文优化器，支持智能摘要生成
-│  ├─docx_summarizer.py          # 文档摘要生成器，提取 .docx 文档内容
-│  ├─fake_tapd_gen.py           # TAPD 假数据生成器，用于测试和演示
-│  ├─word_frequency_analyzer.py  # 词频分析工具，生成关键词词云统计
-│  ├─data_preprocessor.py        # 数据预处理工具，清理和优化 TAPD 数据
-│  └─example_tool.py            # 示例工具
-├─models\                   # 模型目录
-├─test\                     # 测试目录
-│  ├─test_comprehensive.py      # 综合向量化功能测试
-│  ├─test_vectorization.py      # 基础向量化功能测试
-│  ├─test_data_vectorizer.py    # 测试完整版 data_vectorizer 工具功能
-│  ├─test_word_frequency.py     # 词频分析工具测试
-│  └─vector_quick_start.py      # 向量化功能快速启动脚本
-├─.gitignore                # Git 提交时遵守的过滤规则
-├─.python-version           # 记录 Python 版本（3.10）
-├─提示词 - TAPD 平台 MCP 分析助手.md
-├─api.txt                   # 包含 API 密钥信息，需要自行创建（Git 提交时会被忽略）
-├─main.py                   # 项目入口文件，无实际作用
-├─pyproject.toml            # 现代的 Python 依赖管理文件
-├─README.md                 # 项目说明文档，也就是本文档
-├─tapd_data_fetcher.py      # 包含从 TAPD API 获取需求和缺陷数据的逻辑
-├─tapd_mcp_server.py        # MCP 服务器启动脚本，用于提供所有 MCP 工具
-└─uv.lock                   # UV 包管理器使用的锁定文件
+├─documents_data\             # 文档数据目录（暂时，最终将替换至 local_data）
+│  ├─docx_data\                   # 存储 .docx 文档的目录
+│  ├─excel_data\                  # 存储 Excel 表格的目录
+│  └─pictures_data\               # 存储图片的目录
+├─local_data\                 # 本地数据目录，用于存储从 TAPD 获取的数据、数据库等（Git 提交时会被忽略）
+│  ├─msg_from_fetcher.json        # 从 TAPD 获取的需求和缺陷数据
+│  ├─fake_tapd.json               # 假数据生成器生成的模拟 TAPD 数据
+│  ├─preprocessed_data.json       # 预处理后的 TAPD 数据
+│  └─vector_data\                 # 向量数据库文件目录
+│     ├─data_vector.index             # 向量数据库索引文件
+│     ├─data_vector.metadata.pkl      # 向量数据库元数据文件
+│     └─data_vector.config.json       # 向量数据库配置文件
+├─mcp_tools\                  # MCP 工具目录
+│  ├─data_vectorizer.py           # 向量化工具，支持自定义数据源的向量化
+│  ├─context_optimizer.py         # 上下文优化器，支持智能摘要生成
+│  ├─docx_summarizer.py           # 文档摘要生成器，提取 .docx 文档内容
+│  ├─fake_tapd_gen.py             # TAPD 假数据生成器，用于测试和演示
+│  ├─word_frequency_analyzer.py   # 词频分析工具，生成关键词词云统计
+│  ├─data_preprocessor.py         # 数据预处理工具，清理和优化 TAPD 数据
+│  ├─common_utils.py              # 统一的公共工具模块
+│  └─example_tool.py              # 示例工具
+├─models\                     # 模型目录
+├─test\                       # 测试目录
+│  ├─test_comprehensive.py        # 综合向量化功能测试
+│  ├─test_vectorization.py        # 基础向量化功能测试
+│  ├─test_data_vectorizer.py      # 测试完整版 data_vectorizer 工具功能
+│  ├─test_word_frequency.py       # 词频分析工具测试
+│  └─vector_quick_start.py        # 向量化功能快速启动脚本
+├─.gitignore                  # Git 提交时遵守的过滤规则
+├─.python-version             # 记录 Python 版本（3.10）
+├─提示词-TAPD平台MCP分析助手.md
+├─TAPD平台MCP服务器开发指南.md
+├─api.txt                     # 包含 API 密钥信息，需要自行创建（Git 提交时会被忽略）
+├─main.py                     # 项目入口文件，无实际作用
+├─pyproject.toml              # 现代的 Python 依赖管理文件
+├─README.md                   # 项目说明文档，也就是本文档
+├─tapd_data_fetcher.py        # 包含从 TAPD API 获取需求和缺陷数据的逻辑
+├─tapd_mcp_server.py          # MCP 服务器启动脚本，用于提供所有 MCP 工具
+└─uv.lock                     # UV 包管理器使用的锁定文件
 ```
 
 ## 迁移步骤
@@ -276,23 +278,7 @@ MCPAgentRE\
 * 首次使用时需要连接 VPN 以下载模型
 * 预期输出：显示向量化成功和搜索演示结果
 
-4. **详细向量化功能测试**：
-
-  ```bash
-  # 基础向量化测试
-  uv run test\test_vectorization.py
-  
-  # 综合功能测试
-  uv run test\test_comprehensive.py
-
-  # 完整版工具测试
-  uv run test\test_data_vectorizer.py
-  ```
-
-* 首次使用时需要连接 VPN 以下载模型
-* 这些测试脚本位于`test`目录下，会验证所有向量化功能
-
-5. **上下文优化器和假数据生成测试**：
+4. **上下文优化器和假数据生成测试**：
 
   ```bash
   # 生成模拟TAPD数据（用于测试）
@@ -310,13 +296,13 @@ MCPAgentRE\
   ```bash
   set DS_KEY=your_deepseek_api_key        # DeepSeek API密钥
   set DS_EP=https://api.deepseek.com/v1   # API端点URL（可选，默认为DeepSeek）
-  set DS_MODEL=deepseek-reasoner          # 模型名称（可选，默认为deepseek-reasoner）
+  set DS_MODEL=deepseek-chat          # 模型名称（可选，默认为deepseek-chat）
   ```
 
 * 上下文优化器支持离线模式（`--offline`参数）和在线智能摘要生成
 * 假数据生成器用于测试和演示，生成符合TAPD格式的模拟数据
 
-6. **词频分析工具测试**：
+5. **词频分析工具测试**：
 
   ```bash
   uv run mcp_tools\word_frequency_analyzer.py
@@ -324,7 +310,7 @@ MCPAgentRE\
 
 * 该脚本会分析`local_data/msg_from_fetcher.json`中的数据，生成关键词词云统计
 
-7. **文档摘要生成测试**（仍在开发中）：
+6. **文档摘要生成测试**（仍在开发中）：
 
   ```bash
   uv run mcp_tools\docx_summarizer.py
