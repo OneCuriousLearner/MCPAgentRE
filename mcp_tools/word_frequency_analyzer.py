@@ -10,6 +10,7 @@ from collections import Counter
 from typing import Dict, List, Tuple, Any
 import jieba
 import os
+from .common_utils import get_config, get_file_manager
 
 
 class TAPDWordFrequencyAnalyzer:
@@ -22,13 +23,18 @@ class TAPDWordFrequencyAnalyzer:
         参数:
             data_file_path (str): TAPD数据文件路径
         """
-        # 如果不是绝对路径，转换为相对于项目根目录的路径
-        if not os.path.isabs(data_file_path):
-            import pathlib
-            base_dir = pathlib.Path(__file__).parent.parent
-            self.data_file_path = str(base_dir / data_file_path)
+        self.config = get_config()
+        self.file_manager = get_file_manager()
+        
+        # 使用统一的路径处理
+        if data_file_path == "local_data/msg_from_fetcher.json":
+            self.data_file_path = self.config.get_data_file_path()
         else:
-            self.data_file_path = data_file_path
+            # 如果不是绝对路径，转换为相对于项目根目录的路径
+            if not os.path.isabs(data_file_path):
+                self.data_file_path = self.config.get_data_file_path(data_file_path)
+            else:
+                self.data_file_path = data_file_path
         
         # 停用词列表 - 只过滤真正无意义的高频词汇
         # 保留了所有对TAPD缺陷和需求分析有价值的词汇
@@ -152,9 +158,15 @@ class TAPDWordFrequencyAnalyzer:
                     "suggestion": "请先调用 get_tapd_data 工具获取数据"
                 }
             
-            # 读取数据文件
-            with open(self.data_file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            # 使用统一的文件管理器读取数据
+            try:
+                data = self.file_manager.load_tapd_data(self.data_file_path)
+            except FileNotFoundError as e:
+                return {
+                    "status": "error",
+                    "message": str(e),
+                    "suggestion": "请先调用 get_tapd_data 工具获取数据"
+                }
             
             stories = data.get('stories', [])
             bugs = data.get('bugs', [])

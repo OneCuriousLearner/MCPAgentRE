@@ -10,6 +10,7 @@ TAPD 数据生成器 - 用于生成模拟的 TAPD 需求和缺陷数据
 """
 from faker import Faker
 import random, uuid, json, pathlib, datetime
+from .common_utils import get_file_manager
 
 fk = Faker("zh_CN")
 
@@ -281,23 +282,15 @@ def generate(n_story_A=300, n_story_B=200,
     }
     
     # 确保目标目录存在
-    import os
-    dir_path = os.path.dirname(path)
-    if dir_path:  # 只有当路径包含目录时才创建
-        os.makedirs(dir_path, exist_ok=True)
+    # 使用统一的FileManager保存数据
+    file_manager = get_file_manager()
     
     # 强制覆盖写入文件（确保不是追加模式）
     try:
-        # 使用 pathlib.Path().write_text() 默认就是覆盖模式
-        pathlib.Path(path).write_text(json.dumps(data_to_save, ensure_ascii=False, indent=4), encoding='utf-8')
-        # 使用安全的输出格式，避免emoji字符
+        file_manager.save_json_data(data_to_save, path)
         print(f"[SUCCESS] Generated {len(stories)} stories and {len(bugs)} bugs -> {path}")
-    except UnicodeEncodeError as e:
-        # 如果仍有编码问题，使用ASCII安全的JSON输出
-        pathlib.Path(path).write_text(json.dumps(data_to_save, ensure_ascii=True, indent=4), encoding='utf-8')
-        print(f"[SUCCESS] Generated {len(stories)} stories and {len(bugs)} bugs -> {path} (ASCII mode)")
     except Exception as e:
-        # 如果还有其他问题，抛出详细错误
+        # 如果出现问题，抛出详细错误
         raise RuntimeError(f"Failed to write file {path}: {str(e)}")
 
 # ——— 提供给MCP工具调用的异步函数 ———

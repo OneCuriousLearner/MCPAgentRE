@@ -33,12 +33,9 @@
 
 #### 向量化与搜索工具
 
-* **`vectorize_data(chunk_size)`** - 简化版向量化工具，适用于日常使用和快速测试
+* **`vectorize_data(data_file_path, chunk_size)`** - 向量化工具，支持自定义数据源的向量化，将数据转换为向量格式，用于后续的语义搜索和分析
 * **`get_vector_info()`** - 获取简化版向量数据库状态和统计信息
-* **`simple_search_data(query, top_k)`** - 基于语义相似度的智能搜索（简化版）
-* **`advanced_vectorize_data(data_file_path, chunk_size)`** - 完整版向量化工具，适用于生产环境
-* **`advanced_get_vector_info()`** - 获取完整版向量数据库详细信息
-* **`advanced_search_data(query, top_k)`** - 高级智能搜索，返回详细元数据
+* **`search_data(query, top_k)`** - 基于语义相似度的智能搜索，支持自然语言查询，返回与查询最相关的结果
 
 #### 数据生成与分析工具
 
@@ -51,6 +48,44 @@
 * **`example_tool(param1, param2)`** - 示例工具，展示 MCP 工具注册方式
 
 这些工具支持从数据获取到智能分析的完整工作流，为 AI 驱动的测试管理提供强大支持。
+
+### 统一接口脚本
+
+* 位于 `mcp_tools\common_utils.py`
+* 提供统一的工具接口，简化 MCP 工具的注册和调用
+* 包含的工具如下：
+
+#### MCPToolsConfig 类
+
+* 统一的项目配置管理
+* 标准化的路径处理
+* 自动创建必需的目录结构
+
+#### ModelManager 类
+
+* 全局模型缓存管理
+* 统一的模型加载逻辑
+* 本地模型路径自动检测
+* 避免重复加载模型
+
+#### TextProcessor 类
+
+* 标准化的文本提取功能
+* 统一的TAPD数据项处理逻辑
+* 支持需求和缺陷的不同字段提取
+
+#### FileManager 类
+
+* 统一的文件操作接口
+* 标准化的JSON数据加载和保存
+* 路径处理的自动化
+
+#### APIManager 类
+
+* 统一的LLM API调用管理
+* 标准化的错误处理
+* API密钥配置检查
+* 支持多种模型和端点
 
 ## 项目结构
 
@@ -72,7 +107,6 @@ MCPAgentRE\
 │     └─data_vector.config.json    # 向量数据库配置文件
 ├─mcp_tools\                # MCP 工具目录
 │  ├─data_vectorizer.py         # 高级向量化工具（完整版，适用于生产环境）
-│  ├─simple_vectorizer.py       # 简化向量化工具（推荐日常或测试使用）
 │  ├─context_optimizer.py        # 上下文优化器，支持智能摘要生成
 │  ├─docx_summarizer.py          # 文档摘要生成器，提取 .docx 文档内容
 │  ├─fake_tapd_gen.py           # TAPD 假数据生成器，用于测试和演示

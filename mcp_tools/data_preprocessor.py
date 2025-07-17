@@ -21,23 +21,13 @@ from docx import Document
 import csv
 import shutil
 import uuid
+from .common_utils import get_api_manager, get_file_manager
 
 mcp = FastMCP("data_preprocessor")
 
-# DeepSeek API 配置
-API_ENDPOINT = os.getenv("DS_EP", "https://api.deepseek.com/v1")
-API_MODEL = os.getenv("DS_MODEL", "deepseek-reasoner")
-API_KEY = os.getenv("DS_KEY")
-
-def build_headers() -> dict[str, str]:
-    """构建API请求头，检查API密钥是否已设置"""
-    if not API_KEY:
-        raise RuntimeError("No API key provided – set DS_KEY environment variable!")
-    return {"Authorization": f"Bearer {API_KEY}"}
-
 async def call_deepseek_api(content: str, session: aiohttp.ClientSession) -> str:
     """调用 DeepSeek API 对内容进行复述"""
-    headers = build_headers()
+    api_manager = get_api_manager()
     
     prompt = f"""适当简化以下文本，保留关键信息：
 
@@ -45,29 +35,7 @@ async def call_deepseek_api(content: str, session: aiohttp.ClientSession) -> str
 
 只输出简化结果，不要解释。"""
 
-    payload = {
-        "model": API_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 2000,
-        "temperature": 0.3,
-    }
-    
-    try:
-        async with session.post(f"{API_ENDPOINT}/chat/completions", json=payload, headers=headers, timeout=120) as resp:
-            if resp.status != 200:
-                error_text = await resp.text()
-                raise RuntimeError(f"API调用失败 (状态码: {resp.status}): {error_text}")
-            js = await resp.json()
-        
-        msg = js["choices"][0]["message"]
-        # DeepSeek-Reasoner 处理
-        text = (msg.get("content") or msg.get("reasoning_content") or "").strip()
-        
-        if not text:
-            raise RuntimeError("API 返回空内容")
-        return text
-    except Exception as e:
-        raise RuntimeError(f"API调用失败: {str(e)}")
+    return await api_manager.call_llm(prompt, session, max_tokens=2000)
 
 def clean_html_styles(html_content: str) -> str:
     """清理HTML样式信息，保留有意义的文字内容、超链接和图片地址"""
@@ -203,11 +171,11 @@ async def preprocess_description_field(
     """
     try:
         # 读取数据文件
+        file_manager = get_file_manager()
         if not os.path.exists(data_file_path):
             return json.dumps({"status": "error", "message": f"数据文件不存在: {data_file_path}"}, ensure_ascii=False)
         
-        with open(data_file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        data = file_manager.load_tapd_data(data_file_path)
         
         processed_count = 0
         api_call_count = 0
@@ -303,8 +271,7 @@ async def preprocess_description_field(
                         results['bugs'].append(bug)
         
         # 保存处理后的数据
-        with open(output_file_path, 'w', encoding='utf-8') as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
+        file_manager.save_json_data(results, output_file_path)
         
         # 返回处理结果
         result_summary = {
@@ -339,11 +306,11 @@ def preview_description_cleaning(
         str: 预览结果的 JSON 字符串
     """
     try:
+        file_manager = get_file_manager()
         if not os.path.exists(data_file_path):
             return json.dumps({"status": "error", "message": f"数据文件不存在: {data_file_path}"}, ensure_ascii=False)
         
-        with open(data_file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        data = file_manager.load_tapd_data(data_file_path)
         
         preview_results = []
         count = 0

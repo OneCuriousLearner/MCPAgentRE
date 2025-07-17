@@ -16,6 +16,7 @@ import json
 import shutil
 import uuid
 import csv
+from .common_utils import get_file_manager
 
 mcp = FastMCP("docx")
 
@@ -90,7 +91,8 @@ if __name__ == "__main__":
     test_path = "documents_data/docx_data/2.docx"
     result_json = summarize_docx(test_path)
     print(result_json)
-    # 输出到主文件夹
-    with open("docx_summary.json", "w", encoding="utf-8") as f:
-        f.write(result_json)
+    # 使用统一的FileManager输出到主文件夹
+    file_manager = get_file_manager()
+    result_data = json.loads(result_json)
+    file_manager.save_json_data(result_data, "docx_summary.json")
     print("已将文本摘要输出到主文件夹，图片信息输出到documents_data/pictures_data文件夹，表格信息输出到documents_data/excel_data文件夹。") 
