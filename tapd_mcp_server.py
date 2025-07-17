@@ -14,6 +14,8 @@ from mcp_tools.word_frequency_analyzer import analyze_tapd_word_frequency    # �
 from mcp_tools.data_preprocessor import preprocess_description_field, preview_description_cleaning    # 导入数据预处理工具
 from mcp_tools.scoring_config_manager import get_config_manager    # 导入配置管理器
 from mcp_tools.testcase_quality_scorer import get_quality_scorer    # 导入质量评分器
+from mcp_tools.enhanced_scoring_config import get_enhanced_config_manager    # 导入增强配置管理器
+from mcp_tools.enhanced_testcase_scorer import get_enhanced_quality_scorer    # 导入增强评分器
 
 # 初始化MCP服务器
 mcp = FastMCP("tapd")
@@ -1060,6 +1062,574 @@ async def score_testcases_batch(
         error_result = {
             "status": "error",
             "message": f"批量评分失败：{str(e)}",
+            "suggestion": "请检查测试用例数据格式和系统资源"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+# ===============================
+# 增强评分功能接口
+# ===============================
+
+@mcp.tool()
+async def create_scoring_profile(
+    profile_name: str,
+    description: str = "",
+    strategy: str = "standard",
+    base_profile: str = ""
+) -> str:
+    """
+    创建新的评分配置档案
+    
+    功能描述:
+        - 创建自定义的评分配置档案
+        - 支持基于现有档案创建
+        - 提供多种评分策略选择
+        - 支持档案描述和元数据管理
+        
+    参数:
+        profile_name (str): 新档案名称
+        description (str): 档案描述，默认为空
+        strategy (str): 评分策略，可选值：strict(严格)、standard(标准)、lenient(宽松)
+        base_profile (str): 基础档案名称，如果提供则基于该档案创建
+        
+    返回:
+        str: 创建结果的JSON字符串
+        
+    评分策略说明:
+        - strict: 严格模式，评分标准较高
+        - standard: 标准模式，平衡的评分标准
+        - lenient: 宽松模式，评分标准较低
+        
+    使用场景:
+        - 为不同项目创建专用评分标准
+        - 适应不同团队的质量要求
+        - 建立分层的评分体系
+    """
+    try:
+        from mcp_tools.enhanced_scoring_config import ScoringStrategy
+        
+        # 验证策略参数
+        strategy_map = {
+            "strict": ScoringStrategy.STRICT,
+            "standard": ScoringStrategy.STANDARD,
+            "lenient": ScoringStrategy.LENIENT
+        }
+        
+        if strategy not in strategy_map:
+            return json.dumps({
+                "status": "error",
+                "message": f"不支持的评分策略：{strategy}",
+                "suggestion": "可选值：strict、standard、lenient"
+            }, ensure_ascii=False, indent=2)
+        
+        config_manager = await get_enhanced_config_manager()
+        
+        # 创建配置档案
+        profile = await config_manager.create_profile(
+            name=profile_name,
+            description=description,
+            strategy=strategy_map[strategy],
+            base_profile=base_profile if base_profile else None
+        )
+        
+        result = {
+            "status": "success",
+            "message": f"成功创建评分配置档案：{profile_name}",
+            "profile": {
+                "name": profile.name,
+                "description": profile.description,
+                "strategy": profile.strategy.value,
+                "created_at": profile.created_at,
+                "total_weight": profile.get_total_weight(),
+                "dimensions_count": len(profile.dimensions)
+            }
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"创建配置档案失败：{str(e)}",
+            "suggestion": "请检查参数是否正确"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def list_scoring_profiles() -> str:
+    """
+    列出所有可用的评分配置档案
+    
+    功能描述:
+        - 显示所有已创建的评分配置档案
+        - 提供档案的基本信息和元数据
+        - 支持档案选择和管理
+        
+    返回:
+        str: 档案列表的JSON字符串
+        
+    返回信息包括:
+        - 档案名称和描述
+        - 评分策略
+        - 创建时间和更新时间
+        - 作者信息
+        - 版本号
+        
+    使用场景:
+        - 查看可用的评分标准
+        - 选择合适的评分档案
+        - 管理评分配置
+    """
+    try:
+        config_manager = await get_enhanced_config_manager()
+        profiles = await config_manager.list_profiles()
+        
+        result = {
+            "status": "success",
+            "message": f"找到 {len(profiles)} 个评分配置档案",
+            "profiles": profiles
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"获取配置档案列表失败：{str(e)}",
+            "suggestion": "请检查配置目录权限"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def get_scoring_profile_details(profile_name: str) -> str:
+    """
+    获取评分配置档案的详细信息
+    
+    功能描述:
+        - 显示指定档案的完整配置信息
+        - 包括所有评分维度的详细设置
+        - 显示评分阈值和策略配置
+        
+    参数:
+        profile_name (str): 档案名称
+        
+    返回:
+        str: 档案详细信息的JSON字符串
+        
+    详细信息包括:
+        - 档案基本信息
+        - 评分阈值设置
+        - 各维度权重和配置
+        - 评分范围设置
+        - 自定义参数
+        
+    使用场景:
+        - 查看档案的具体配置
+        - 了解评分标准的细节
+        - 配置调整前的参考
+    """
+    try:
+        config_manager = await get_enhanced_config_manager()
+        profile = await config_manager.load_profile(profile_name)
+        
+        # 构建详细信息
+        dimensions_info = {}
+        for dim_name, dim_rule in profile.dimensions.items():
+            dimensions_info[dim_name] = {
+                "name": dim_rule.name,
+                "weight": dim_rule.weight,
+                "enabled": dim_rule.enabled,
+                "min_score": dim_rule.min_score,
+                "max_score": dim_rule.max_score,
+                "scoring_ranges": [
+                    {
+                        "min_value": sr.min_value,
+                        "max_value": sr.max_value,
+                        "score": sr.score,
+                        "description": sr.description,
+                        "weight_multiplier": sr.weight_multiplier
+                    } for sr in dim_rule.scoring_ranges
+                ],
+                "custom_params": dim_rule.custom_params
+            }
+        
+        result = {
+            "status": "success",
+            "profile": {
+                "name": profile.name,
+                "description": profile.description,
+                "strategy": profile.strategy.value,
+                "version": profile.version,
+                "author": profile.author,
+                "created_at": profile.created_at,
+                "updated_at": profile.updated_at,
+                "thresholds": {
+                    "excellent_min": profile.thresholds.excellent_min,
+                    "good_min": profile.thresholds.good_min,
+                    "fair_min": profile.thresholds.fair_min,
+                    "poor_max": profile.thresholds.poor_max
+                },
+                "dimensions": dimensions_info,
+                "total_weight": profile.get_total_weight(),
+                "validation": profile.validate()
+            }
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"获取配置档案详情失败：{str(e)}",
+            "suggestion": "请检查档案名称是否正确"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def update_scoring_thresholds(
+    profile_name: str,
+    excellent_min: float = 9.0,
+    good_min: float = 7.0,
+    fair_min: float = 5.0,
+    poor_max: float = 4.9
+) -> str:
+    """
+    更新评分配置档案的阈值设置
+    
+    功能描述:
+        - 自定义评分等级的阈值设置
+        - 支持灵活的分数区间调整
+        - 验证阈值设置的合理性
+        
+    参数:
+        profile_name (str): 档案名称
+        excellent_min (float): 优秀等级最低分，默认9.0
+        good_min (float): 良好等级最低分，默认7.0
+        fair_min (float): 及格等级最低分，默认5.0
+        poor_max (float): 需要改进等级最高分，默认4.9
+        
+    返回:
+        str: 更新结果的JSON字符串
+        
+    阈值要求:
+        - 必须满足：poor_max < fair_min <= good_min <= excellent_min <= 10.0
+        - 所有阈值必须在0-10分范围内
+        
+    使用场景:
+        - 调整评分等级标准
+        - 适应不同的质量要求
+        - 优化评分体系
+    """
+    try:
+        from mcp_tools.enhanced_scoring_config import ScoreThresholds
+        
+        config_manager = await get_enhanced_config_manager()
+        profile = await config_manager.load_profile(profile_name)
+        
+        # 创建新的阈值配置
+        new_thresholds = ScoreThresholds(
+            excellent_min=excellent_min,
+            good_min=good_min,
+            fair_min=fair_min,
+            poor_max=poor_max
+        )
+        
+        # 更新档案
+        profile.thresholds = new_thresholds
+        profile.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        await config_manager.save_profile(profile)
+        
+        result = {
+            "status": "success",
+            "message": f"成功更新档案 {profile_name} 的阈值设置",
+            "profile_name": profile_name,
+            "new_thresholds": {
+                "excellent_min": excellent_min,
+                "good_min": good_min,
+                "fair_min": fair_min,
+                "poor_max": poor_max
+            },
+            "updated_at": profile.updated_at
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"更新阈值设置失败：{str(e)}",
+            "suggestion": "请检查阈值设置是否合理"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def update_dimension_config(
+    profile_name: str,
+    dimension_name: str,
+    weight: float,
+    enabled: bool = True,
+    min_score: float = 0.0,
+    max_score: float = 10.0,
+    custom_params: str = "{}"
+) -> str:
+    """
+    更新评分维度的配置
+    
+    功能描述:
+        - 调整评分维度的权重和参数
+        - 支持启用/禁用特定维度
+        - 自定义评分范围和参数
+        
+    参数:
+        profile_name (str): 档案名称
+        dimension_name (str): 维度名称(title/precondition/steps/expected_result/priority)
+        weight (float): 权重值(0-1之间)
+        enabled (bool): 是否启用，默认True
+        min_score (float): 最小分数，默认0.0
+        max_score (float): 最大分数，默认10.0
+        custom_params (str): 自定义参数的JSON字符串
+        
+    返回:
+        str: 更新结果的JSON字符串
+        
+    使用场景:
+        - 调整各维度的重要性
+        - 禁用不需要的评分维度
+        - 自定义评分参数
+    """
+    try:
+        config_manager = await get_enhanced_config_manager()
+        profile = await config_manager.load_profile(profile_name)
+        
+        if dimension_name not in profile.dimensions:
+            return json.dumps({
+                "status": "error",
+                "message": f"维度 {dimension_name} 不存在",
+                "suggestion": f"可用维度：{list(profile.dimensions.keys())}"
+            }, ensure_ascii=False, indent=2)
+        
+        # 解析自定义参数
+        try:
+            custom_params_dict = json.loads(custom_params)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "status": "error",
+                "message": f"自定义参数JSON格式错误：{str(e)}",
+                "suggestion": "请检查JSON格式是否正确"
+            }, ensure_ascii=False, indent=2)
+        
+        # 更新维度配置
+        dimension = profile.dimensions[dimension_name]
+        dimension.weight = weight
+        dimension.enabled = enabled
+        dimension.min_score = min_score
+        dimension.max_score = max_score
+        
+        # 更新自定义参数
+        if custom_params_dict:
+            dimension.custom_params.update(custom_params_dict)
+        
+        # 更新时间戳
+        profile.updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        await config_manager.save_profile(profile)
+        
+        result = {
+            "status": "success",
+            "message": f"成功更新维度 {dimension_name} 的配置",
+            "profile_name": profile_name,
+            "dimension_name": dimension_name,
+            "new_config": {
+                "weight": weight,
+                "enabled": enabled,
+                "min_score": min_score,
+                "max_score": max_score,
+                "custom_params": custom_params_dict
+            },
+            "total_weight": profile.get_total_weight(),
+            "updated_at": profile.updated_at
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"更新维度配置失败：{str(e)}",
+            "suggestion": "请检查参数是否正确"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def enhanced_score_testcase(
+    testcase_data: str,
+    profile_name: str = "default",
+    return_details: bool = True
+) -> str:
+    """
+    使用增强评分引擎对测试用例进行评分
+    
+    功能描述:
+        - 使用指定的评分档案进行评分
+        - 支持多种评分策略
+        - 提供更详细的评分分析
+        - 支持自定义评分阈值
+        
+    参数:
+        testcase_data (str): 测试用例数据的JSON字符串
+        profile_name (str): 使用的评分档案名称，默认为"default"
+        return_details (bool): 是否返回详细评分信息，默认True
+        
+    返回:
+        str: 评分结果的JSON字符串
+        
+    相比基础评分的优势:
+        - 支持多套评分标准
+        - 灵活的阈值设置
+        - 多种评分策略
+        - 更详细的评分分析
+        
+    使用场景:
+        - 高级测试用例质量评估
+        - 多标准评分对比
+        - 精确的质量控制
+    """
+    try:
+        scorer = await get_enhanced_quality_scorer(profile_name)
+        
+        # 解析测试用例数据
+        try:
+            testcase = json.loads(testcase_data)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "status": "error",
+                "message": f"测试用例数据格式错误：{str(e)}",
+                "suggestion": "请检查JSON格式是否正确"
+            }, ensure_ascii=False, indent=2)
+        
+        # 获取评分结果
+        score_result = await scorer.score_single_testcase(testcase, profile_name)
+        
+        # 根据参数决定返回信息
+        if return_details:
+            result = {
+                "status": "success",
+                "score_result": score_result
+            }
+        else:
+            result = {
+                "status": "success",
+                "testcase_id": score_result["testcase_id"],
+                "total_score": score_result["total_score"],
+                "score_level": score_result["score_level"],
+                "score_level_cn": score_result["score_level_cn"],
+                "profile_name": score_result["profile_name"],
+                "improvement_count": len(score_result["improvement_suggestions"])
+            }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"增强评分失败：{str(e)}",
+            "suggestion": "请检查测试用例数据格式和档案名称"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def enhanced_score_testcases_batch(
+    testcases_data: str,
+    profile_name: str = "default",
+    batch_size: int = 10,
+    return_summary_only: bool = False
+) -> str:
+    """
+    使用增强评分引擎批量评分测试用例
+    
+    功能描述:
+        - 批量处理多个测试用例
+        - 使用指定的评分档案
+        - 提供详细的统计分析
+        - 支持大批量数据处理
+        
+    参数:
+        testcases_data (str): 测试用例数组的JSON字符串
+        profile_name (str): 使用的评分档案名称，默认为"default"
+        batch_size (int): 每批处理的用例数量，默认10
+        return_summary_only (bool): 是否仅返回汇总信息，默认False
+        
+    返回:
+        str: 批量评分结果的JSON字符串
+        
+    返回信息包括:
+        - 基于档案阈值的分布统计
+        - 评分策略信息
+        - 详细的批量处理结果
+        
+    使用场景:
+        - 大规模测试用例质量评估
+        - 质量报告生成
+        - 批量质量改进分析
+    """
+    try:
+        scorer = await get_enhanced_quality_scorer(profile_name)
+        
+        # 解析测试用例数组
+        try:
+            testcases = json.loads(testcases_data)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "status": "error",
+                "message": f"测试用例数据格式错误：{str(e)}",
+                "suggestion": "请检查JSON格式是否正确"
+            }, ensure_ascii=False, indent=2)
+        
+        if not isinstance(testcases, list):
+            return json.dumps({
+                "status": "error",
+                "message": "测试用例数据必须是数组格式",
+                "suggestion": "请提供测试用例数组"
+            }, ensure_ascii=False, indent=2)
+        
+        if len(testcases) == 0:
+            return json.dumps({
+                "status": "error",
+                "message": "测试用例数组为空",
+                "suggestion": "请提供至少一个测试用例"
+            }, ensure_ascii=False, indent=2)
+        
+        # 批量评分
+        batch_result = await scorer.score_batch_testcases(testcases, batch_size, profile_name)
+        
+        # 根据参数决定返回信息
+        if return_summary_only:
+            result = {
+                "status": "success",
+                "summary": {
+                    "total_count": batch_result["total_count"],
+                    "success_count": batch_result["success_count"],
+                    "error_count": batch_result["error_count"],
+                    "average_score": batch_result["average_score"],
+                    "score_distribution": batch_result["score_distribution"],
+                    "profile_name": batch_result["profile_name"],
+                    "strategy": batch_result["strategy"],
+                    "processed_at": batch_result["processed_at"]
+                }
+            }
+        else:
+            result = {
+                "status": "success",
+                "batch_result": batch_result
+            }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"批量增强评分失败：{str(e)}",
             "suggestion": "请检查测试用例数据格式和系统资源"
         }
         return json.dumps(error_result, ensure_ascii=False, indent=2)
