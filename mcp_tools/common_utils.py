@@ -8,7 +8,7 @@ import os
 import json
 import aiohttp
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from sentence_transformers import SentenceTransformer
 
 
@@ -286,6 +286,46 @@ class TextProcessor:
             texts.append(f"描述: {desc}")
         
         return " | ".join(texts)
+    
+    @staticmethod
+    def extract_keywords(text: str, max_keywords: int = 10) -> List[str]:
+        """
+        从文本中提取关键词
+        
+        参数:
+            text: 输入文本
+            max_keywords: 最大关键词数量
+            
+        返回:
+            List[str]: 关键词列表
+        """
+        if not text:
+            return []
+        
+        # 简单的关键词提取：找出长度大于1的中英文词汇
+        import re
+        
+        # 提取中文词汇（2-10个字符）
+        chinese_words = re.findall(r'[\u4e00-\u9fff]{2,10}', text)
+        
+        # 提取英文词汇（2-20个字符）
+        english_words = re.findall(r'[a-zA-Z]{2,20}', text)
+        
+        # 合并并去重
+        all_words = list(set(chinese_words + english_words))
+        
+        # 过滤常见停用词
+        stopwords = {
+            '的', '是', '在', '和', '有', '了', '与', '及', '或', '等', '为', '将', '可以', '需要', '进行', '使用', '通过', '包括', '支持', '提供', '实现', '功能', '系统', '用户', '数据', '信息', '管理', '服务', '操作', '处理', '方式', '方法', '内容', '页面', '界面', '显示', '查看', '点击', '输入', '选择', '确认', '取消', '保存', '删除', '修改', '添加', '创建', '编辑', '搜索', '查询', '过滤', '排序', '分页', '列表', '详情', '设置', '配置', '参数', '选项', '状态', '结果', '成功', '失败', '错误', '异常', '正常', '完成', '开始', '结束', '继续', '返回', '跳转', '刷新', '加载', '更新', '同步', '备份', '恢复', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'and', 'or', 'but', 'if', 'then', 'else', 'when', 'where', 'why', 'how', 'what', 'which', 'who', 'whom', 'whose', 'that', 'this', 'these', 'those', 'a', 'an', 'the', 'in', 'on', 'at', 'by', 'for', 'with', 'to', 'from', 'up', 'down', 'out', 'off', 'over', 'under', 'again', 'further', 'then', 'once'
+        }
+        
+        # 过滤停用词
+        filtered_words = [word for word in all_words if word.lower() not in stopwords]
+        
+        # 按长度排序，优先选择较长的词汇
+        filtered_words.sort(key=len, reverse=True)
+        
+        return filtered_words[:max_keywords]
 
 
 class FileManager:
@@ -317,6 +357,26 @@ class FileManager:
         with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     
+    def load_json_data(self, file_path: str) -> Dict[str, Any]:
+        """
+        加载JSON数据
+        
+        参数:
+            file_path: 数据文件路径
+            
+        返回:
+            Dict: JSON数据
+        """
+        if not os.path.exists(file_path):
+            return {}
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"加载JSON文件失败: {file_path}, 错误: {str(e)}")
+            return {}
+
     def save_json_data(self, data: Dict[str, Any], file_path: str):
         """
         保存JSON数据
@@ -369,3 +429,8 @@ def get_api_manager() -> APIManager:
     if _global_api_manager is None:
         _global_api_manager = APIManager()
     return _global_api_manager
+
+
+def get_text_processor() -> TextProcessor:
+    """获取全局文本处理器实例"""
+    return TextProcessor()

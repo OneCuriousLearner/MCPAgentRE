@@ -16,6 +16,9 @@ from mcp_tools.scoring_config_manager import get_config_manager    # 导入配�
 from mcp_tools.testcase_quality_scorer import get_quality_scorer    # 导入质量评分器
 from mcp_tools.enhanced_scoring_config import get_enhanced_config_manager    # 导入增强配置管理器
 from mcp_tools.enhanced_testcase_scorer import get_enhanced_quality_scorer    # 导入增强评分器
+from mcp_tools.requirement_knowledge_base import (
+    RequirementKnowledgeBase, build_knowledge_base_from_tapd_data
+)    # 导入历史需求知识库
 
 # 初始化MCP服务器
 mcp = FastMCP("tapd")
@@ -1631,6 +1634,503 @@ async def enhanced_score_testcases_batch(
             "status": "error",
             "message": f"批量增强评分失败：{str(e)}",
             "suggestion": "请检查测试用例数据格式和系统资源"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+# ===============================
+# 历史需求知识库功能接口
+# ===============================
+
+@mcp.tool()
+async def build_requirement_knowledge_base(data_file_path: str = "local_data/msg_from_fetcher.json") -> str:
+    """
+    从TAPD数据构建历史需求知识库
+    
+    功能描述:
+        - 从现有TAPD数据构建历史需求知识库
+        - 提取需求的关键信息用于后续搜索和推荐
+        - 支持自定义数据源路径
+        - 为新测试用例编写提供历史参考基础
+        
+    参数:
+        data_file_path (str): TAPD数据文件路径，默认为"local_data/msg_from_fetcher.json"
+        
+    返回:
+        str: 构建结果的JSON字符串
+        
+    构建内容包括:
+        - 需求基本信息（ID、标题、描述）
+        - 功能分类和业务场景
+        - 技术关键词提取
+        - 测试用例模板关联
+        
+    使用场景:
+        - 首次建立知识库
+        - 更新现有知识库数据
+        - 为团队提供需求历史参考
+        
+    注意事项:
+        - 建议先调用get_tapd_data获取最新数据
+        - 构建过程可能需要一定时间
+        - 会覆盖现有的知识库数据
+    """
+    try:
+        result = await build_knowledge_base_from_tapd_data(data_file_path)
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"构建知识库失败：{str(e)}",
+            "suggestion": "请检查数据文件是否存在，建议先调用get_tapd_data获取数据"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def add_requirement_to_knowledge_base(
+    req_id: str,
+    title: str,
+    description: str,
+    feature_type: str,
+    complexity: str = "中等",
+    business_scenario: str = "[]",
+    technical_keywords: str = "[]",
+    test_case_templates: str = "[]"
+) -> str:
+    """
+    添加新需求到历史知识库
+    
+    功能描述:
+        - 将新的需求信息添加到历史知识库
+        - 支持完整的需求信息录入
+        - 自动提取关键词和分类信息
+        - 为后续的搜索和推荐提供数据
+        
+    参数:
+        req_id (str): 需求ID，必须唯一
+        title (str): 需求标题
+        description (str): 需求描述
+        feature_type (str): 功能类型（如：认证授权、数据管理、用户界面等）
+        complexity (str): 复杂度等级，默认"中等"
+        business_scenario (str): 业务场景JSON数组字符串，默认"[]"
+        technical_keywords (str): 技术关键词JSON数组字符串，默认"[]"
+        test_case_templates (str): 测试用例模板JSON数组字符串，默认"[]"
+        
+    返回:
+        str: 添加结果的JSON字符串
+        
+    数据格式示例:
+        business_scenario: ["用户管理", "安全验证"]
+        technical_keywords: ["登录", "验证", "Token"]
+        test_case_templates: [{"scenario": "正常登录", "steps": [...]}]
+        
+    使用场景:
+        - 录入新的需求信息
+        - 更新现有需求数据
+        - 建立需求与测试用例的关联
+        
+    注意事项:
+        - req_id必须唯一，重复ID会更新现有记录
+        - JSON数组参数需要正确格式化
+        - 建议提供详细的描述和分类信息
+    """
+    try:
+        # 解析JSON数组参数
+        try:
+            business_scenario_list = json.loads(business_scenario)
+            technical_keywords_list = json.loads(technical_keywords)
+            test_case_templates_list = json.loads(test_case_templates)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "status": "error",
+                "message": f"JSON格式错误：{str(e)}",
+                "suggestion": "请检查business_scenario、technical_keywords、test_case_templates的JSON格式"
+            }, ensure_ascii=False, indent=2)
+        
+        # 构建需求数据
+        requirement_data = {
+            "req_id": req_id,
+            "title": title,
+            "description": description,
+            "feature_type": feature_type,
+            "complexity": complexity,
+            "business_scenario": business_scenario_list,
+            "technical_keywords": technical_keywords_list,
+            "change_history": [],
+            "related_requirements": [],
+            "test_case_templates": test_case_templates_list
+        }
+        
+        # 添加到知识库
+        kb = RequirementKnowledgeBase()
+        success = kb.add_requirement_to_knowledge_base(requirement_data)
+        
+        if success:
+            result = {
+                "status": "success",
+                "message": f"成功添加需求 {req_id} 到知识库",
+                "requirement_id": req_id,
+                "requirement_title": title,
+                "feature_type": feature_type
+            }
+        else:
+            result = {
+                "status": "error",
+                "message": f"添加需求 {req_id} 失败",
+                "suggestion": "请检查需求数据格式"
+            }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"添加需求到知识库失败：{str(e)}",
+            "suggestion": "请检查参数格式和数据有效性"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def search_similar_requirements(
+    query: str,
+    feature_type: str = "",
+    top_k: int = 5
+) -> str:
+    """
+    搜索相似的历史需求
+    
+    功能描述:
+        - 基于查询内容搜索相似的历史需求
+        - 支持自然语言查询和关键词搜索
+        - 可按功能类型过滤搜索结果
+        - 返回相似度排序的需求列表
+        
+    参数:
+        query (str): 搜索查询，支持自然语言描述
+        feature_type (str): 功能类型过滤，默认为空（不过滤）
+        top_k (int): 返回结果数量，默认5个
+        
+    返回:
+        str: 搜索结果的JSON字符串
+        
+    搜索结果包括:
+        - 需求基本信息
+        - 相似度分数
+        - 匹配的关键词
+        - 关联的测试用例模板
+        
+    使用场景:
+        - 查找相似的历史需求
+        - 为新需求寻找参考案例
+        - 了解相关功能的实现历史
+        
+    查询示例:
+        - "用户登录验证功能"
+        - "数据导入导出"
+        - "权限管理系统"
+        
+    注意事项:
+        - 需要先建立知识库
+        - 查询词越具体，匹配效果越好
+        - 支持中文和英文查询
+    """
+    try:
+        kb = RequirementKnowledgeBase()
+        
+        # 搜索相似需求
+        similar_reqs = kb.search_similar_requirements(
+            query=query,
+            feature_type=feature_type if feature_type else None,
+            top_k=top_k
+        )
+        
+        result = {
+            "status": "success",
+            "query": query,
+            "feature_type": feature_type,
+            "result_count": len(similar_reqs),
+            "similar_requirements": similar_reqs
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"搜索相似需求失败：{str(e)}",
+            "suggestion": "请检查知识库是否已建立，建议先调用build_requirement_knowledge_base"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def get_requirement_evolution_path(feature_id: str) -> str:
+    """
+    获取需求功能的演化路径
+    
+    功能描述:
+        - 查看特定功能的历史演化过程
+        - 了解功能的变更记录和发展轨迹
+        - 分析功能演化的模式和趋势
+        - 为新功能设计提供参考
+        
+    参数:
+        feature_id (str): 功能ID或功能名称
+        
+    返回:
+        str: 演化路径信息的JSON字符串
+        
+    演化信息包括:
+        - 各个版本的功能特性
+        - 测试重点的变化
+        - 迁移和兼容性考虑
+        - 演化模式分析
+        
+    使用场景:
+        - 了解功能的发展历史
+        - 分析功能变更的影响
+        - 制定功能升级策略
+        - 预测未来的演化趋势
+        
+    注意事项:
+        - 需要预先录入演化数据
+        - 功能ID需要准确匹配
+        - 演化路径需要手动维护
+    """
+    try:
+        kb = RequirementKnowledgeBase()
+        evolution_path = kb.get_requirement_evolution_path(feature_id)
+        
+        result = {
+            "status": "success",
+            "feature_id": feature_id,
+            "evolution_path": evolution_path
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"获取演化路径失败：{str(e)}",
+            "suggestion": "请检查功能ID是否正确"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def recommend_test_cases_for_requirement(
+    req_id: str = "",
+    title: str = "",
+    description: str = "",
+    feature_type: str = "",
+    business_scenario: str = "[]",
+    technical_keywords: str = "[]",
+    use_ai: bool = True
+) -> str:
+    """
+    为需求推荐测试用例
+    
+    功能描述:
+        - 基于需求信息智能推荐测试用例
+        - 结合历史需求经验和AI分析
+        - 提供多种测试场景的用例模板
+        - 支持正常、异常、边界等测试类型
+        
+    参数:
+        req_id (str): 需求ID，可选
+        title (str): 需求标题
+        description (str): 需求描述
+        feature_type (str): 功能类型
+        business_scenario (str): 业务场景JSON数组字符串，默认"[]"
+        technical_keywords (str): 技术关键词JSON数组字符串，默认"[]"
+        use_ai (bool): 是否使用AI推荐，默认True
+        
+    返回:
+        str: 推荐结果的JSON字符串
+        
+    推荐内容包括:
+        - 基于相似需求的模板推荐
+        - AI生成的测试场景建议
+        - 测试用例标题和步骤模板
+        - 优先级和测试类型建议
+        
+    推荐来源:
+        - 相似历史需求的测试用例
+        - AI智能分析和生成
+        - 标准测试用例模板库
+        
+    使用场景:
+        - 新需求的测试用例设计
+        - 测试用例完整性检查
+        - 测试场景遗漏分析
+        
+    注意事项:
+        - 需要配置AI API密钥（使用AI推荐时）
+        - 推荐结果需要人工审核和调整
+        - 建议结合实际业务场景使用
+    """
+    try:
+        # 解析JSON数组参数
+        try:
+            business_scenario_list = json.loads(business_scenario)
+            technical_keywords_list = json.loads(technical_keywords)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "status": "error",
+                "message": f"JSON格式错误：{str(e)}",
+                "suggestion": "请检查business_scenario、technical_keywords的JSON格式"
+            }, ensure_ascii=False, indent=2)
+        
+        # 构建需求数据
+        requirement_data = {
+            "req_id": req_id,
+            "title": title,
+            "description": description,
+            "feature_type": feature_type,
+            "business_scenario": business_scenario_list,
+            "technical_keywords": technical_keywords_list
+        }
+        
+        # 获取推荐
+        kb = RequirementKnowledgeBase()
+        recommendations = await kb.recommend_test_cases_for_requirement(
+            requirement_data=requirement_data,
+            use_ai=use_ai
+        )
+        
+        result = {
+            "status": "success",
+            "requirement_info": {
+                "req_id": req_id,
+                "title": title,
+                "feature_type": feature_type
+            },
+            "recommendation_count": len(recommendations),
+            "recommendations": recommendations,
+            "use_ai": use_ai
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"推荐测试用例失败：{str(e)}",
+            "suggestion": "请检查需求信息和网络连接（AI推荐时）"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def analyze_requirement_test_coverage(requirement_id: str) -> str:
+    """
+    分析需求的测试覆盖度
+    
+    功能描述:
+        - 分析指定需求的测试用例覆盖情况
+        - 识别测试覆盖的空白领域
+        - 提供测试完整性评估
+        - 给出测试改进建议
+        
+    参数:
+        requirement_id (str): 需求ID
+        
+    返回:
+        str: 覆盖度分析结果的JSON字符串
+        
+    分析内容包括:
+        - 现有测试用例数量统计
+        - 测试类型覆盖情况
+        - 缺失的测试领域
+        - 覆盖度改进建议
+        
+    测试类型分析:
+        - 功能测试覆盖度
+        - 异常测试覆盖度
+        - 边界测试覆盖度
+        - 性能测试覆盖度
+        - 安全测试覆盖度
+        
+    使用场景:
+        - 测试用例完整性检查
+        - 测试策略制定
+        - 质量保证评估
+        - 测试计划优化
+        
+    注意事项:
+        - 需要先将需求添加到知识库
+        - 分析结果基于已录入的测试用例模板
+        - 建议结合实际测试执行情况
+    """
+    try:
+        kb = RequirementKnowledgeBase()
+        coverage_analysis = kb.analyze_requirement_test_coverage(requirement_id)
+        
+        result = {
+            "status": "success",
+            "coverage_analysis": coverage_analysis
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"分析测试覆盖度失败：{str(e)}",
+            "suggestion": "请检查需求ID是否正确，确保需求已添加到知识库"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def get_knowledge_base_stats() -> str:
+    """
+    获取历史需求知识库统计信息
+    
+    功能描述:
+        - 查看知识库的整体统计信息
+        - 了解需求数量和分类分布
+        - 检查知识库的健康状态
+        - 为知识库管理提供数据支持
+        
+    返回:
+        str: 统计信息的JSON字符串
+        
+    统计信息包括:
+        - 总需求数量
+        - 功能类型分布
+        - 演化功能数量
+        - 测试用例模板数量
+        - 最后更新时间
+        
+    分类统计:
+        - 按功能类型的需求分布
+        - 按复杂度的需求分布
+        - 按时间的需求分布
+        
+    使用场景:
+        - 知识库健康检查
+        - 数据质量评估
+        - 知识库使用情况分析
+        - 管理决策支持
+        
+    注意事项:
+        - 需要已建立知识库
+        - 统计数据实时计算
+        - 反映当前知识库状态
+    """
+    try:
+        kb = RequirementKnowledgeBase()
+        stats = kb.get_knowledge_base_stats()
+        
+        result = {
+            "status": "success",
+            "knowledge_base_stats": stats
+        }
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"获取知识库统计信息失败：{str(e)}",
+            "suggestion": "请检查知识库是否已建立"
         }
         return json.dumps(error_result, ensure_ascii=False, indent=2)
 

@@ -13,6 +13,13 @@
 
 `MCP_Agent:RE`是一个用于从 TAPD 平台获取需求和缺陷数据并生成质量分析报告的 Python 项目，旨在为 AI 客户端提供数据支持。
 
+## 📚 文档导航
+
+- **快速开始**: [docs/knowledge_base/快速开始-历史需求知识库.md](docs/knowledge_base/快速开始-历史需求知识库.md)
+- **详细文档**: [docs/README.md](docs/README.md) - 包含所有功能的详细说明
+- **Excel集成**: [docs/knowledge_base/使用Excel文件测试知识库.md](docs/knowledge_base/使用Excel文件测试知识库.md)
+- **完整指南**: [docs/knowledge_base/历史需求知识库使用指南.md](docs/knowledge_base/历史需求知识库使用指南.md)
+
 ### 可用的 MCP 服务器
 
 本项目提供了丰富的 MCP 工具集，支持 TAPD 数据的获取、处理、分析和智能摘要功能：
@@ -43,11 +50,21 @@
 * **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API 密钥）
 * **`analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)`** - 分析TAPD数据的词频分布，生成关键词词云统计，为搜索功能提供精准关键词建议
 
+#### 历史需求知识库工具
+
+* **`build_requirement_knowledge_base(data_file_path)`** - 从TAPD数据构建历史需求知识库【新功能】
+* **`add_requirement_to_knowledge_base(req_id, title, description, feature_type, ...)`** - 添加新需求到知识库
+* **`search_similar_requirements(query, feature_type, top_k)`** - 搜索相似的历史需求
+* **`recommend_test_cases_for_requirement(title, description, feature_type, use_ai)`** - 为需求推荐测试用例【AI支持】
+* **`analyze_requirement_test_coverage(requirement_id)`** - 分析需求的测试覆盖度
+* **`get_knowledge_base_stats()`** - 获取知识库统计信息
+* **`get_requirement_evolution_path(feature_id)`** - 获取需求功能的演化路径
+
 #### 示例工具
 
 * **`example_tool(param1, param2)`** - 示例工具，展示 MCP 工具注册方式
 
-这些工具支持从数据获取到智能分析的完整工作流，为 AI 驱动的测试管理提供强大支持。
+这些工具支持从数据获取到智能分析的完整工作流，特别是新增的**历史需求知识库**功能，为 AI 驱动的测试管理和测试用例编写提供强大的历史参考支持。
 
 ### 统一接口脚本
 
@@ -289,6 +306,9 @@ MCPAgentRE\
   
   # 生成详细摘要（需要配置API密钥）
   uv run mcp_tools\context_optimizer.py -f local_data\msg_from_fetcher.json --debug
+  
+  # 测试和初始化历史需求知识库
+  uv run test\test_knowledge_base_simple.py
   ```
 
 * **环境变量配置（在线模式）**：为使用上下文优化器的在线LLM功能，需要设置以下环境变量：
