@@ -44,11 +44,48 @@
 * **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API 密钥）
 * **`analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)`** - 分析TAPD数据的词频分布，生成关键词词云统计，为搜索功能提供精准关键词建议
 
+#### 历史需求知识库
+
+* **`enhance_tapd_with_knowledge(tapd_file, testcase_file)`** - 增强TAPD数据，添加功能分类、测试用例建议和关键词信息，让现有的`search_data()`工具返回更有价值的搜索结果
+
 #### 示例工具
 
 * **`example_tool(param1, param2)`** - 示例工具，展示 MCP 工具注册方式
 
 这些工具支持从数据获取到智能分析的完整工作流，为 AI 驱动的测试管理提供强大支持。
+
+## 快速开始
+
+### 基础使用流程
+
+1. **获取TAPD数据**
+   ```bash
+   uv run tapd_data_fetcher.py
+   ```
+
+2. **增强数据（添加知识库信息）**
+   ```bash
+   # 仅使用TAPD数据
+   uv run mcp_tools\knowledge_base.py
+   
+   # 结合测试用例Excel文件
+   uv run mcp_tools\knowledge_base.py -c "path/to/testcase.xlsx"
+   ```
+
+3. **智能搜索需求**
+   - 通过MCP客户端调用 `search_data("搜索内容")` 
+   - 搜索结果将包含功能分类、测试用例建议等增强信息
+
+### 历史需求知识库使用
+
+**功能说明：** 为TAPD需求数据添加功能分类、测试用例建议和关键词，提升搜索体验
+
+**使用步骤：**
+1. 确保已有TAPD数据：`uv run tapd_data_fetcher.py`
+2. 增强数据：`uv run mcp_tools\knowledge_base.py -c "测试用例文件.xlsx"`
+3. 使用 `search_data()` 工具搜索，结果将包含测试用例建议
+
+详细说明请参考：`knowledge_documents/历史需求知识库使用指南.md`
 
 ### 统一接口脚本
 
