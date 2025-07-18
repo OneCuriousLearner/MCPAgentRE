@@ -321,7 +321,11 @@ class TestCaseEvaluator:
             current_tokens = candidate_tokens
             
         next_index = start_index + len(current_batch)
+        
+        # 显示当前批次包含的测试用例ID
+        batch_ids = [case.get('test_case_id', 'N/A') for case in current_batch]
         print(f"当前批次包含 {len(current_batch)} 个测试用例，预计使用 {current_tokens} tokens")
+        print(f"批次包含的用例ID: {', '.join(batch_ids)}")
         
         return current_batch, next_index
     
@@ -390,6 +394,11 @@ class TestCaseEvaluator:
         
         print(f"批量处理 {len(test_cases)} 个用例: 请求tokens={request_tokens}, 响应tokens限制={dynamic_response_tokens}")
         
+        # 显示正在处理的测试用例ID
+        processing_ids = [case.get('test_case_id', 'N/A') for case in test_cases]
+        print(f"🔄 正在处理的测试用例: {', '.join(processing_ids)}")
+        print("📤 正在调用AI进行评估...")
+        
         # 调用AI API
         result = await self.api_manager.call_llm(
             prompt=final_prompt,
@@ -397,6 +406,7 @@ class TestCaseEvaluator:
             max_tokens=dynamic_response_tokens
         )
         
+        print("✅ AI评估完成，开始解析结果...")
         return result
     
     def parse_evaluation_result(self, ai_response: str) -> List[Dict[str, Any]]:
@@ -446,14 +456,15 @@ class TestCaseEvaluator:
             all_tables.append(current_table_lines)
         
         print(f"找到 {len(all_tables)} 个表格")
+        print("🔍 开始解析表格数据...")
         
         if not all_tables:
-            print("未找到有效的表格数据")
+            print("❌ 未找到有效的表格数据")
             return evaluations
         
         # 解析每个表格
         for table_index, table_lines in enumerate(all_tables):
-            print(f"解析第 {table_index + 1} 个表格，包含 {len(table_lines)} 行")
+            print(f"📋 解析第 {table_index + 1} 个表格，包含 {len(table_lines)} 行")
             
             current_case = None
             case_id = None
@@ -475,6 +486,7 @@ class TestCaseEvaluator:
                             id_part = field_info.replace('**用例ID**', '').strip()
                         
                         case_id = id_part
+                        print(f"  📝 正在解析用例ID: {case_id}")
                         
                         # 保存之前的用例
                         if current_case:
@@ -500,6 +512,8 @@ class TestCaseEvaluator:
                             field_name = field_info.replace('**', '').strip()
                             field_content = ''
                         
+                        print(f"    📊 解析字段: {field_name} (分数: {score.strip() if score.strip() != '-' else '无'})")
+                        
                         evaluation_item = {
                             'field': field_name,
                             'content': field_content,
@@ -512,14 +526,15 @@ class TestCaseEvaluator:
             # 添加当前表格的最后一个用例
             if current_case:
                 evaluations.append(current_case)
+                print(f"  ✅ 完成用例解析: {current_case['test_case_id']}")
         
-        print(f"成功解析 {len(evaluations)} 个用例的评估结果")
+        print(f"🎉 成功解析 {len(evaluations)} 个用例的评估结果")
         if evaluations:
             # 输出解析结果的示例
             first_case = evaluations[0]
-            print(f"示例解析结果 - 用例ID: {first_case['test_case_id']}, 评估项数: {len(first_case['evaluations'])}")
+            print(f"📊 示例解析结果 - 用例ID: {first_case['test_case_id']}, 评估项数: {len(first_case['evaluations'])}")
             for item in first_case['evaluations'][:2]:  # 显示前两个评估项
-                print(f"  - {item['field']}: 分数={item['score']}, 建议={item['suggestion']}")
+                print(f"    - {item['field']}: 分数={item['score']}, 建议={item['suggestion']}")
         
         return evaluations
     
@@ -543,10 +558,14 @@ class TestCaseEvaluator:
             while current_index < len(test_cases):
                 # 如果设置了测试批次限制，检查是否超过
                 if test_batch_count and batch_number > test_batch_count:
-                    print(f"达到测试批次限制 ({test_batch_count})，停止处理")
+                    print(f"🛑 达到测试批次限制 ({test_batch_count})，停止处理")
                     break
                 
-                print(f"\n开始处理第 {batch_number} 批次...")
+                # 显示总体进度
+                remaining_cases = len(test_cases) - current_index
+                progress_percent = (current_index / len(test_cases)) * 100
+                print(f"\n📊 总体进度: {current_index}/{len(test_cases)} ({progress_percent:.1f}%), 剩余 {remaining_cases} 个用例")
+                print(f"🚀 开始处理第 {batch_number} 批次...")
                 
                 # 分割当前批次
                 batch_cases, next_index = self.split_test_cases_by_tokens(
@@ -554,41 +573,46 @@ class TestCaseEvaluator:
                 )
                 
                 if not batch_cases:
-                    print("没有更多测试用例可处理")
+                    print("✅ 没有更多测试用例可处理")
                     break
                 
                 try:
                     # 评估当前批次
                     ai_result = await self.evaluate_batch(batch_cases, session)
-                    print(f"AI返回结果长度: {len(ai_result)}")
-                    print(f"AI返回结果前1000字符: {ai_result[:1000]}...")
+                    print(f"📄 AI返回结果长度: {len(ai_result)}")
+                    print(f"🔍 AI返回结果前1000字符预览: ========================================")
+                    print(f"\n{ai_result[:1000]}\n......")
+                    print("============================================================")
                     
                     # 解析结果
                     batch_evaluations = self.parse_evaluation_result(ai_result)
                     all_evaluations.extend(batch_evaluations)
                     
-                    print(f"第 {batch_number} 批次处理完成，评估了 {len(batch_evaluations)} 个用例")
+                    # 显示本批次处理的用例ID
+                    processed_ids = [eval_result['test_case_id'] for eval_result in batch_evaluations]
+                    print(f"✅ 第 {batch_number} 批次处理完成，评估了 {len(batch_evaluations)} 个用例")
+                    print(f"📋 已完成评估的用例ID: {', '.join(processed_ids)}")
                     
                     # 如果是测试模式且第一批次完成，询问是否继续
                     if test_batch_count == 1 and batch_number == 1:
-                        print(f"\n第一批次测试完成，评估结果预览:")
+                        print(f"\n🧪 第一批次测试完成，评估结果预览:")
                         if batch_evaluations:
                             first_eval = batch_evaluations[0]
-                            print(f"用例ID: {first_eval['test_case_id']}")
-                            print(f"评估项数量: {len(first_eval['evaluations'])}")
+                            print(f"📊 用例ID: {first_eval['test_case_id']}")
+                            print(f"📈 评估项数量: {len(first_eval['evaluations'])}")
                         else:
-                            print("解析评估结果失败，可能需要调整解析逻辑")
-                            print(f"AI原始返回: {ai_result[:500]}...")
-                        print("\n如需处理更多批次，请修改 test_batch_count 参数")
+                            print("❌ 解析评估结果失败，可能需要调整解析逻辑")
+                            print(f"🔍 AI原始返回: {ai_result[:1000]}...")
+                        print("\n💡 如需处理更多批次，请修改 test_batch_count 参数")
                         break
                     
                 except Exception as e:
-                    print(f"第 {batch_number} 批次处理失败: {str(e)}")
+                    print(f"❌ 第 {batch_number} 批次处理失败: {str(e)}")
                     if test_batch_count == 1:
-                        print("测试批次失败，请检查API配置和网络连接")
+                        print("🔧 测试批次失败，请检查API配置和网络连接")
                         break
                     else:
-                        print("跳过当前批次，继续处理下一批次")
+                        print("⏭️ 跳过当前批次，继续处理下一批次")
                 
                 current_index = next_index
                 batch_number += 1
@@ -599,12 +623,12 @@ class TestCaseEvaluator:
         return all_evaluations
 
 
-async def main_process(test_batch_count: int = 1):
+async def main_process(test_batch_count: int = 3):
     """
     主处理流程
     
     参数:
-        test_batch_count: 测试数据批次，1表示只处理第一批用于测试
+        test_batch_count: 测试数据批次，3表示只处理第一批用于测试
     """
     config = get_config()
     processor = TestCaseProcessor()
@@ -633,7 +657,8 @@ async def main_process(test_batch_count: int = 1):
         print(f"加载了 {len(test_cases)} 条测试用例数据")
         
         # 步骤3: AI评估
-        print(f"\n开始AI评估，测试批次限制: {test_batch_count}")
+        print(f"\n🚀 开始AI评估，测试批次限制: {test_batch_count}")
+        print(f"📊 总计需要评估 {len(test_cases)} 个测试用例")
         evaluations = await evaluator.evaluate_test_cases(test_cases, test_batch_count)
         
         # 步骤4: 保存评估结果
@@ -646,10 +671,10 @@ async def main_process(test_batch_count: int = 1):
                 "generated_at": str(json_file).split('_')[-1].replace('.json', '')
             }
             file_manager.save_json_data(result_data, str(result_file))
-            print(f"\n评估完成！结果已保存到: {result_file}")
-            print(f"共评估了 {len(evaluations)} 个测试用例")
+            print(f"\n🎉 评估完成！结果已保存到: {result_file}")
+            print(f"📈 共评估了 {len(evaluations)} 个测试用例")
         else:
-            print("\n没有生成评估结果")
+            print("\n❌ 没有生成评估结果")
             
     except Exception as e:
         print(f"处理失败: {str(e)}")

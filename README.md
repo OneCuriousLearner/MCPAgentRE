@@ -1,6 +1,7 @@
 # MCP_Agent:RE 项目指南
 
 * 对话效果预览
+
 ![对话效果预览](ClaudePreview.jpg)
 
 * 此项目于2025年6月10日由[punkpeye (Frank Fiegel)](https://github.com/punkpeye)收录于[TAPD Data Fetcher | Glama](https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE)
@@ -57,35 +58,41 @@
 
 #### MCPToolsConfig 类
 
-* 统一的项目配置管理
-* 标准化的路径处理
-* 自动创建必需的目录结构
+* **`__init__()`** - 初始化配置管理器，自动创建项目所需的目录结构（local_data、models、vector_data）
+* **`_get_project_root()`** - 获取项目根目录的绝对路径
+* **`get_data_file_path(relative_path)`** - 获取数据文件的绝对路径，支持相对路径自动转换
+* **`get_vector_db_path(name)`** - 获取向量数据库文件路径，默认为"data_vector"
+* **`get_model_cache_path()`** - 获取模型缓存目录路径
 
 #### ModelManager 类
 
-* 全局模型缓存管理
-* 统一的模型加载逻辑
-* 本地模型路径自动检测
-* 避免重复加载模型
+* **`__init__(config)`** - 初始化模型管理器，依赖MCPToolsConfig实例
+* **`get_project_model_path(model_name)`** - 检测本地是否存在指定模型，返回模型路径或None
+* **`get_model(model_name)`** - 获取SentenceTransformer模型实例，优先使用本地模型，支持自动下载和缓存
+* **`clear_cache()`** - 清除全局模型缓存，释放内存资源
 
 #### TextProcessor 类
 
-* 标准化的文本提取功能
-* 统一的TAPD数据项处理逻辑
-* 支持需求和缺陷的不同字段提取
+* **`extract_text_from_item(item, item_type)`** - 从TAPD数据项（需求/缺陷）中提取关键文本信息，支持不同类型的字段提取策略
 
 #### FileManager 类
 
-* 统一的文件操作接口
-* 标准化的JSON数据加载和保存
-* 路径处理的自动化
+* **`__init__(config)`** - 初始化文件管理器，依赖MCPToolsConfig实例
+* **`load_tapd_data(file_path)`** - 加载TAPD JSON数据文件，支持绝对路径和相对路径
+* **`save_json_data(data, file_path)`** - 保存数据为JSON格式，自动创建目录结构
 
 #### APIManager 类
 
-* 统一的LLM API调用管理
-* 标准化的错误处理
-* API密钥配置检查
-* 支持多种模型和端点
+* **`__init__()`** - 初始化API管理器，从环境变量读取DeepSeek API配置
+* **`get_headers()`** - 构建API请求头，验证API密钥是否已设置
+* **`call_llm(prompt, session, model, endpoint, max_tokens)`** - 调用在线LLM API，支持DeepSeek-Reasoner的reasoning_content字段
+
+#### 全局实例管理函数
+
+* **`get_config()`** - 获取全局MCPToolsConfig实例（单例模式）
+* **`get_model_manager()`** - 获取全局ModelManager实例（单例模式）
+* **`get_file_manager()`** - 获取全局FileManager实例（单例模式）
+* **`get_api_manager()`** - 获取全局APIManager实例（单例模式）
 
 ## 项目结构
 
