@@ -35,3 +35,4 @@ models/*
 
 # MarkDown files
 !knowledge_documents/DeepSeek API 环境变量配置指南.md
+!knowledge_documents/测试用例规则自定义功能使用手册.md
