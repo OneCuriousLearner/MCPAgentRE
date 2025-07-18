@@ -79,6 +79,7 @@
 
 * **`__init__(config)`** - 初始化文件管理器，依赖MCPToolsConfig实例
 * **`load_tapd_data(file_path)`** - 加载TAPD JSON数据文件，支持绝对路径和相对路径
+* **`load_json_data(file_path)`** - 加载JSON数据文件，支持错误处理，文件不存在时返回空字典
 * **`save_json_data(data, file_path)`** - 保存数据为JSON格式，自动创建目录结构
 
 #### APIManager 类
