@@ -8,7 +8,7 @@ import os
 import json
 import aiohttp
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from sentence_transformers import SentenceTransformer
 
 
@@ -317,6 +317,26 @@ class FileManager:
         with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     
+    def load_json_data(self, file_path: str) -> Dict[str, Any]:
+        """
+        加载JSON数据
+        
+        参数:
+            file_path: 数据文件路径
+            
+        返回:
+            Dict: JSON数据
+        """
+        if not os.path.exists(file_path):
+            return {}
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"加载JSON文件失败: {file_path}, 错误: {str(e)}")
+            return {}
+
     def save_json_data(self, data: Dict[str, Any], file_path: str):
         """
         保存JSON数据
