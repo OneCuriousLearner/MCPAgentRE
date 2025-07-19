@@ -12,6 +12,7 @@ from mcp_tools.context_optimizer import build_overview    # 导入上下文优�
 from mcp_tools.docx_summarizer import summarize_docx as _summarize_docx
 from mcp_tools.word_frequency_analyzer import analyze_tapd_word_frequency    # 导入词频分析器
 from mcp_tools.data_preprocessor import preprocess_description_field, preview_description_cleaning    # 导入数据预处理工具
+from mcp_tools.knowledge_base import enhance_tapd_data_with_knowledge    # 导入数据增强工具
 
 # 初始化MCP服务器
 mcp = FastMCP("tapd")
@@ -612,6 +613,43 @@ def preview_tapd_description_cleaning(
             "status": "error",
             "message": f"预览失败：{str(e)}",
             "suggestion": "请检查数据文件是否存在"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+async def enhance_tapd_with_knowledge(
+    tapd_file: str = "local_data/msg_from_fetcher.json",
+    testcase_file: Optional[str] = None
+) -> str:
+    """
+    增强TAPD数据，添加测试用例关联信息
+    
+    功能描述:
+        - 在现有TAPD数据基础上添加知识库信息
+        - 为每个需求添加功能类型、测试用例建议、关键词等
+        - 不创建新数据库，直接增强现有数据文件
+        - 自动备份原文件，增强后的数据可直接用于search_data()
+        
+    参数:
+        tapd_file (str): TAPD数据文件路径，默认"local_data/msg_from_fetcher.json"
+        testcase_file (Optional[str]): 测试用例Excel文件路径，可选
+        
+    返回:
+        str: 增强结果的JSON字符串
+        
+    使用场景:
+        - 在使用search_data()搜索需求前，先增强数据
+        - 让搜索结果包含测试用例建议和功能分类
+        - 提高需求分析和测试用例编写的效率
+    """
+    try:
+        result = enhance_tapd_data_with_knowledge(tapd_file, testcase_file)
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"数据增强失败：{str(e)}",
+            "suggestion": "请检查TAPD数据文件是否存在，建议先调用 get_tapd_data 工具获取数据"
         }
         return json.dumps(error_result, ensure_ascii=False, indent=2)
 

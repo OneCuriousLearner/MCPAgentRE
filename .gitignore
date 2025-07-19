@@ -14,11 +14,17 @@ wheels/
 
 # Claude
 .claude/
+CLAUDE.md
 
 # idea
 .idea/
 
-# Private infomation
+# GEMINI
+.gemini/
+gemini.md
+.env
+
+# Private information
 local_data/*
 !local_data/.gitkeep
 !local_data/vector_data/
@@ -34,8 +40,10 @@ models/*
 !models/deepseek_v3_tokenizer/
 
 # MarkDown files
+!knowledge_documents/TAPD API 文档/
 !knowledge_documents/DeepSeek API 环境变量配置指南.md
-!knowledge_documents/测试用例规则自定义功能使用手册.md
-
-# Claude configuration
-CLAUDE.md
+!knowledge_documents/get_tapd_data工具使用手册.md
+!knowledge_documents/TAPD数据预处理工具使用手册.md
+!knowledge_documents/TAPD词频分析工具使用手册.md
+!knowledge_documents/TAPD数据向量化功能使用手册.md
+!knowledge_documents/AI测试用例评估器操作手册.md

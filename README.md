@@ -44,6 +44,10 @@
 * **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API 密钥）
 * **`analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)`** - 分析TAPD数据的词频分布，生成关键词词云统计，为搜索功能提供精准关键词建议
 
+#### 历史需求知识库
+
+* **`enhance_tapd_with_knowledge(tapd_file, testcase_file)`** - 增强TAPD数据，添加功能分类、测试用例建议和关键词信息，让现有的`search_data()`工具返回更有价值的搜索结果
+
 #### 示例工具
 
 * **`example_tool(param1, param2)`** - 示例工具，展示 MCP 工具注册方式
