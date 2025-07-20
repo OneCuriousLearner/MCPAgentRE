@@ -351,7 +351,7 @@ MCPAgentRE\
 
 * 测试用例评估器会根据配置的规则评估测试用例质量，并生成评估报告
 * 首次运行时会自动生成默认规则配置文件 `config/test_case_rules.json` 与 `config/require_list_config.json`
-* 详细说明请参阅 `knowledge_documents\AI测试用例评估器操作手册.md` 与 `knowledge_documents\测试用例规则自定义功能使用手册.md`
+* 详细说明请参阅 `knowledge_documents\AI测试用例评估器操作手册.md`
 
 #### 正常模式
 
