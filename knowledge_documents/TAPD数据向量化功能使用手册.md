@@ -42,7 +42,7 @@ cd D:\MCPAgentRE  # 根据实际路径调整
 运行快速启动脚本：
 
 ```bash
-python test\vector_quick_start.py
+uv run test\vector_quick_start.py
 ```
 
 预期输出：
@@ -261,7 +261,7 @@ uv run tapd_data_fetcher.py
 
 ```bash
 # 运行预热脚本
-python test\vector_quick_start.py
+uv run test\vector_quick_start.py
 
 # 检查系统资源
 # 确保有足够的内存和CPU资源
@@ -271,7 +271,7 @@ python test\vector_quick_start.py
 
 ### ✅ 推荐做法
 
-1. **初次使用**：先运行`python test\vector_quick_start.py`进行环境验证
+1. **初次使用**：先运行`uv run test\vector_quick_start.py`进行环境验证
 2. **数据更新**：TAPD数据变更后及时重新向量化
 3. **查询优化**：使用业务相关的专业术语
 4. **结果验证**：关注相关度分数，筛选高质量结果

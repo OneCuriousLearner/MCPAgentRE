@@ -38,7 +38,7 @@
 - 首次使用建议先从本地数据提取需求单，建立基础知识库
 - 根据测试需要手动添加特定需求单
 - 定期检查和清理不再需要的需求单
-- 每次操作都会自动保存到 local_data/require_list_config.json
+- 每次操作都会自动保存到 config/require_list_config.json
 
 === 数据格式说明 ===
 需求单数据结构：
@@ -77,7 +77,11 @@ class RequirementKnowledgeBase:
     def __init__(self):
         self.config = get_config()
         self.file_manager = get_file_manager()
-        self.config_file = self.config.local_data_path / "require_list_config.json"
+        # 修改配置文件路径至根目录的config文件夹
+        config_dir = Path(self.config.project_root) / "config"
+        # 确保config目录存在
+        config_dir.mkdir(exist_ok=True)
+        self.config_file = config_dir / "require_list_config.json"
         self.requirements = self._load_requirements()
     
     def _load_requirements(self) -> List[Dict[str, Any]]:
@@ -415,7 +419,7 @@ def show_menu():
     print("|    -| -_| . | | | |  _| -_|  | __ -| .'|_ -| -_|")
     print("|__|__|___|_  |___|_|_| |___|  |_____|__,|___|___|")
     print("            |_|                                   ")
-    print("🎯 测试用例需求单知识库管理器")
+    print("             测试用例需求单知识库管理器             ")
     print("="*50)
     print("请选择功能：")
     print("1. 从本地数据提取需求单")

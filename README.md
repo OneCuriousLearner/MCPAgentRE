@@ -44,15 +44,19 @@
 * **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API 密钥）
 * **`analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)`** - 分析TAPD数据的词频分布，生成关键词词云统计，为搜索功能提供精准关键词建议
 
-#### 历史需求知识库
-
-* **`enhance_tapd_with_knowledge(tapd_file, testcase_file)`** - 增强TAPD数据，添加功能分类、测试用例建议和关键词信息，让现有的`search_data()`工具返回更有价值的搜索结果
-
 #### 示例工具
 
 * **`example_tool(param1, param2)`** - 示例工具，展示 MCP 工具注册方式
 
 这些工具支持从数据获取到智能分析的完整工作流，为 AI 驱动的测试管理提供强大支持。
+
+### 可用的 WorkFlow 脚本
+
+#### 测试用例评估
+
+* `mcp_tools\test_case_rules_customer.py` - 测试用例评估规则配置脚本，用于配置测试用例的评估标准和优先级
+* `mcp_tools\test_case_require_list_knowledge_base.py` - 测试用例需求知识库生成脚本，可从 TAPD 数据中提取需求信息并生成知识库，或手动修改需求信息
+* `mcp_tools\test_case_evaluator.py` - 测试用例AI评估器脚本，用于根据配置的规则评估测试用例质量，并生成评估报告至本地文件
 
 ### 统一接口脚本
 
@@ -103,8 +107,8 @@
 
 ```text
 MCPAgentRE\
-├─knowledge_documents\        # 知识文档（Git 提交时会被忽略）
-│  └─DeepSeek API 环境变量配置指南.md
+├─config\                     # 配置文件目录
+├─knowledge_documents\        # 知识文档（Git 提交时默认忽略目录下的文件，若要提交请手动在 .gitignore 中取消忽略）
 ├─documents_data\             # 文档数据目录（暂时，最终将替换至 local_data）
 │  ├─docx_data\                   # 存储 .docx 文档的目录
 │  ├─excel_data\                  # 存储 Excel 表格的目录
@@ -263,6 +267,7 @@ MCPAgentRE\
   ```
 
   输出结果如下：
+
   ```text
   成功加载配置: 用户=4ikoesFM, 工作区=37857678
   ✅ MCP服务器启动成功！
@@ -331,7 +336,26 @@ MCPAgentRE\
 * 该脚本会提取指定.docx文档中的文本、图片和表格信息，并生成摘要
 * 预期输出：生成的摘要JSON文件和提取的图片、表格文件
 
+7. **测试用例评估器**：
+
+  ```bash
+  # 运行自定义规则演示
+  uv run test\demo_custom_rules.py
+
+  # 运行需求单知识库初始化
+  uv run test\init_requirement_kb.py
+
+  # 运行测试用例评估器
+  uv run mcp_tools\test_case_evaluator.py
+  ```
+
+* 测试用例评估器会根据配置的规则评估测试用例质量，并生成评估报告
+* 首次运行时会自动生成默认规则配置文件 `config/test_case_rules.json` 与 `config/require_list_config.json`
+* 详细说明请参阅 `knowledge_documents\AI测试用例评估器操作手册.md` 与 `knowledge_documents\测试用例规则自定义功能使用手册.md`
+
 #### 正常模式
+
+##### MCP 服务器启动
 
 1. 确保`tapd_mcp_server.py`的 main 函数中没有任何 print 语句（或已注释掉），以避免在启动时输出调试信息。
 
@@ -340,6 +364,36 @@ MCPAgentRE\
   ```bash
   uv run tapd_mcp_server.py
   ```
+
+##### WorkFlow 脚本运行
+
+1. 评分规则配置
+
+```bash
+# 查看规则配置
+uv run mcp_tools/test_case_rules_customer.py
+
+# 修改规则配置
+uv run mcp_tools/test_case_rules_customer.py --config
+
+# 重置为默认配置
+uv run mcp_tools/test_case_rules_customer.py --reset
+
+# 查看帮助信息
+uv run mcp_tools/test_case_rules_customer.py --help
+```
+
+2. 运行需求单知识库
+
+```bash
+uv run mcp_tools/test_case_require_list_knowledge_base.py
+```
+
+3.  运行 AI 评估器
+
+```bash
+uv run mcp_tools/test_case_evaluator.py
+```
 
 ### 六、常见问题排查
 
@@ -480,3 +534,4 @@ MCPAgentRE\
 * [TAPD开放平台文档](https://open.tapd.cn/document/api-doc/API%E6%96%87%E6%A1%A3/%E4%BD%BF%E7%94%A8%E5%BF%85%E8%AF%BB.html)
 * [MCP中文站](https://mcpcn.com/docs/introduction/)
 * [Model Context Protocol](https://modelcontextprotocol.io/introduction)
+* [DeepSeek API Docs](https://api-docs.deepseek.com/zh-cn/)

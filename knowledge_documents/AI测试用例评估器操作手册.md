@@ -24,7 +24,7 @@
 
 AI 测试用例评估器是一个综合性工具集，用于自动评估测试用例的质量并提供改进建议。系统基于大型语言模型（LLM）对测试用例进行分析，支持批量处理大量测试用例，并通过自定义规则和需求单关联来保证评估的准确性和相关性。
 
-### 核心优势：
+### 核心优势
 
 - **自动化评估**：无需人工逐条审核，大幅提高测试质量管理效率
 - **一致性标准**：基于可配置的规则，确保所有测试用例遵循统一标准
@@ -33,7 +33,7 @@ AI 测试用例评估器是一个综合性工具集，用于自动评估测试�
 - **批量处理**：智能 Token 管理，支持大量测试用例的批次处理
 - **性能统计**：提供优先级分布分析、处理时间等统计信息
 
-### 系统架构：
+### 系统架构
 
 系统由三个主要组件组成，各司其职，协同工作：
 
@@ -49,14 +49,14 @@ AI 测试用例评估器是一个综合性工具集，用于自动评估测试�
 
 该组件提供了一个灵活的配置管理系统，允许用户自定义测试用例评估的规则参数。
 
-#### 主要功能：
+#### 主要功能
 
 - **参数配置**：标题长度限制、步骤数上限、各优先级占比范围
-- **持久化存储**：配置保存至 local_data/test_case_rules.json
+- **持久化存储**：配置保存至 config/test_case_rules.json
 - **交互式界面**：支持命令行交互式修改配置
 - **配置验证**：确保所有参数在合理范围内
 
-#### 数据结构：
+#### 数据结构
 
 ```json
 {
@@ -72,20 +72,20 @@ AI 测试用例评估器是一个综合性工具集，用于自动评估测试�
 }
 ```
 
-#### 使用方法：
+#### 使用方法
 
 ```bash
 # 查看当前配置
-python mcp_tools/test_case_rules_customer.py
+uv run mcp_tools/test_case_rules_customer.py
 
 # 交互式修改配置
-python mcp_tools/test_case_rules_customer.py --config
+uv run mcp_tools/test_case_rules_customer.py --config
 
 # 重置为默认配置
-python mcp_tools/test_case_rules_customer.py --reset
+uv run mcp_tools/test_case_rules_customer.py --reset
 ```
 
-#### 代码架构：
+#### 代码架构
 
 - `TestCaseRulesCustomer` 类：规则配置管理的核心类
   - `load_config()`: 从文件加载配置或使用默认配置
@@ -103,14 +103,14 @@ python mcp_tools/test_case_rules_customer.py --reset
 
 需求单知识库用于管理与测试用例相关的业务需求信息，为测试用例评估提供业务背景。
 
-#### 主要功能：
+#### 主要功能
 
 - **需求数据管理**：添加、查看、删除需求单信息
 - **数据提取**：从 local_data/msg_from_fetcher.json 自动提取需求单
 - **数据格式化**：将需求单内容格式化为评估系统可用的格式
-- **持久化存储**：保存至 local_data/require_list_config.json
+- **持久化存储**：保存至 config/require_list_config.json
 
-#### 数据结构：
+#### 数据结构
 
 ```json
 {
@@ -127,22 +127,25 @@ python mcp_tools/test_case_rules_customer.py --reset
 }
 ```
 
-#### 使用方法：
+#### 使用方法
 
 ```bash
 # 启动需求单知识库管理界面
-python mcp_tools/test_case_require_list_knowledge_base.py
+uv run mcp_tools/test_case_require_list_knowledge_base.py
 ```
 
 交互式菜单选项：
+
+```bash
 1. 从本地JSON提取需求单
 2. 手动添加需求单
 3. 查看所有需求单
 4. 删除需求单
 5. 清空需求单
 0. 退出
+```
 
-#### 代码架构：
+#### 代码架构
 
 - `RequirementKnowledgeBase` 类：需求单知识库的核心类
   - `_load_requirements()`: 加载需求单数据
@@ -162,7 +165,7 @@ python mcp_tools/test_case_require_list_knowledge_base.py
 
 测试用例评估器是系统的核心引擎，负责读取测试用例、分批处理、调用 AI 进行评估，并解析评估结果。
 
-#### 主要功能：
+#### 主要功能
 
 - **数据处理**：Excel 文件转换为 JSON 格式
 - **Token 管理**：智能分批处理测试用例以适应 LLM 上下文窗口
@@ -171,7 +174,7 @@ python mcp_tools/test_case_require_list_knowledge_base.py
 - **优先级分析**：分析测试用例优先级分布是否符合规则要求
 - **时间统计**：记录处理时间，计算平均处理速度
 
-#### 类与模块：
+#### 类与模块
 
 1. **TokenCounter**：负责计算文本的 token 数量
    - 优先使用本地 `transformers` tokenizer 进行精确计算
@@ -187,9 +190,10 @@ python mcp_tools/test_case_require_list_knowledge_base.py
    - 分割测试用例到适当批次
    - 执行评估并解析结果
 
-#### Token 管理策略：
+#### Token 管理策略
 
 评估器采用多层次的 Token 管理策略：
+
 - **总上下文分配**：从总上下文中预留 25% 作为缓冲
 - **可用 Token 分配**：
   - 25% 用于请求（测试用例数据）
@@ -197,16 +201,16 @@ python mcp_tools/test_case_require_list_knowledge_base.py
   - 25% 作为缓冲
 - **批次安全阈值**：请求 Token 的 75% 作为批次阈值，增加安全余量
 
-#### 使用方法：
+#### 使用方法
 
 ```bash
 # 运行评估器处理所有测试用例
-python mcp_tools/test_case_evaluator.py
+uv run mcp_tools/test_case_evaluator.py
 
 # 测试模式（仅处理一批）可通过修改代码 main_process(test_batch_count=1) 实现
 ```
 
-#### 处理流程：
+#### 处理流程
 
 1. 读取测试用例数据（Excel 或已转换的 JSON）
 2. 分析测试用例优先级分布
@@ -215,7 +219,7 @@ python mcp_tools/test_case_evaluator.py
 5. 解析评估结果
 6. 汇总结果并保存
 
-#### 评估结果格式：
+#### 评估结果格式
 
 ```json
 {
@@ -277,15 +281,17 @@ python mcp_tools/test_case_evaluator.py
 ### 3.2 规则配置
 
 1. 查看当前评估规则
+
    ```bash
-   python mcp_tools/test_case_rules_customer.py
+   uv run mcp_tools/test_case_rules_customer.py
    ```
 
 2. 根据项目需求修改规则
+
    ```bash
-   python mcp_tools/test_case_rules_customer.py --config
+   uv run mcp_tools/test_case_rules_customer.py --config
    ```
-   
+
    关注以下关键配置：
    - 标题长度限制：推荐设置为 30-50 字符
    - 步骤数上限：根据项目复杂度设置，通常为 8-12 步
@@ -294,8 +300,9 @@ python mcp_tools/test_case_evaluator.py
 ### 3.3 需求单管理
 
 1. 启动需求单知识库管理界面
+
    ```bash
-   python mcp_tools/test_case_require_list_knowledge_base.py
+   uv run mcp_tools/test_case_require_list_knowledge_base.py
    ```
 
 2. 从 TAPD 数据中提取需求单（选项 1）
@@ -311,8 +318,9 @@ python mcp_tools/test_case_evaluator.py
 ### 3.4 执行评估
 
 1. 运行评估器
+
    ```bash
-   python mcp_tools/test_case_evaluator.py
+   uv run mcp_tools/test_case_evaluator.py
    ```
 
 2. 评估过程中观察输出信息：
@@ -397,11 +405,13 @@ python mcp_tools/test_case_evaluator.py
 ### 问题：评估结果为空或解析失败
 
 **可能原因**：
+
 - AI 返回格式不符合预期
 - 提示词模板可能需要调整
 - Token 限制过严导致截断
 
 **解决方案**：
+
 1. 检查 AI 返回的原始结果（控制台输出）
 2. 调整 `max_response_tokens` 参数
 3. 修改 `parse_evaluation_result` 方法以适应不同格式
@@ -409,11 +419,13 @@ python mcp_tools/test_case_evaluator.py
 ### 问题：批次处理中断或失败
 
 **可能原因**：
+
 - API 调用限制或网络问题
 - Token 超限
 - 服务端错误
 
 **解决方案**：
+
 1. 增加 `asyncio.sleep()` 延迟
 2. 减小批次大小（调整 `token_threshold`）
 3. 实现断点续传功能（保存处理进度）
@@ -421,10 +433,12 @@ python mcp_tools/test_case_evaluator.py
 ### 问题：需求单提取数量不足
 
 **可能原因**：
+
 - local_data/msg_from_fetcher.json 数据不完整
 - 需求数据格式与预期不符
 
 **解决方案**：
+
 1. 检查 msg_from_fetcher.json 文件内容
 2. 手动添加关键需求单
 3. 调整提取逻辑以适应不同格式
@@ -432,10 +446,12 @@ python mcp_tools/test_case_evaluator.py
 ### 问题：优先级分布不符合规则要求
 
 **可能原因**：
+
 - 测试用例等级设置不合理
 - 规则配置与项目实际情况不符
 
 **解决方案**：
+
 1. 根据分析结果调整测试用例优先级
 2. 修改规则配置以适应项目需求
 3. 针对特定模块重新设计测试策略
@@ -475,6 +491,7 @@ python mcp_tools/test_case_evaluator.py
 将评估器集成到现有系统：
 
 1. **作为模块导入**：
+
    ```python
    from mcp_tools.test_case_evaluator import TestCaseEvaluator
    
@@ -489,8 +506,9 @@ python mcp_tools/test_case_evaluator.py
    ```
 
 2. **命令行调用**：
+
    ```bash
-   python -c "from mcp_tools.test_case_evaluator import main_process; \
+   uv run -c "from mcp_tools.test_case_evaluator import main_process; \
               import asyncio; \
               asyncio.run(main_process(test_batch_count=None))"
    ```
@@ -505,8 +523,8 @@ python mcp_tools/test_case_evaluator.py
 
 ### 相关配置文件路径
 
-- **规则配置**：local_data/test_case_rules.json
-- **需求单知识库**：local_data/require_list_config.json
+- **规则配置**：config/test_case_rules.json
+- **需求单知识库**：config/require_list_config.json
 - **输入数据**：local_data/TestCase_[时间戳].xlsx
 - **输出结果**：local_data/Proceed_TestCase_[时间戳].json
 - **TAPD 数据**：local_data/msg_from_fetcher.json
@@ -515,16 +533,22 @@ python mcp_tools/test_case_evaluator.py
 
 ```bash
 # 查看规则配置
-python mcp_tools/test_case_rules_customer.py
+uv run mcp_tools/test_case_rules_customer.py
 
 # 修改规则配置
-python mcp_tools/test_case_rules_customer.py --config
+uv run mcp_tools/test_case_rules_customer.py --config
+
+# 重置为默认配置
+uv run mcp_tools/test_case_rules_customer.py --reset
+
+# 查看帮助信息
+uv run mcp_tools/test_case_rules_customer.py --help
 
 # 管理需求单知识库
-python mcp_tools/test_case_require_list_knowledge_base.py
+uv run mcp_tools/test_case_require_list_knowledge_base.py
 
 # 运行评估器
-python mcp_tools/test_case_evaluator.py
+uv run mcp_tools/test_case_evaluator.py
 ```
 
 ---

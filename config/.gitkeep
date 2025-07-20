@@ -1,0 +1,2 @@
+# This file ensures the config directory is tracked by Git
+# while ignoring all other files in this directory
