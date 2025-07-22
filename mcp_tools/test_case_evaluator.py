@@ -268,7 +268,7 @@ class TestCaseEvaluator:
         p1_range = f"{priority_ratios['P1']['min']}%~{priority_ratios['P1']['max']}%"
         p2_range = f"{priority_ratios['P2']['min']}%~{priority_ratios['P2']['max']}%"
         
-        template = f"""请为以下测试用例分别生成评估表格。每个用例应该有自己独立的表格。
+        template = f"""你需要为一批业务需求用例进行打分与评估。请为以下测试用例分别生成评估表格。每个用例应该有自己独立的表格。
 
 重要提示：
 1. 请为每个用例生成一个完整的表格
@@ -276,6 +276,7 @@ class TestCaseEvaluator:
 3. 每个表格之间用空行分隔
 4. 严格按照提供的表格格式输出
 5. **除此以外不需要任何分析或解释**
+6. **必须从测试用例JSON数据中提取真实的字段内容，不要使用任何占位符**
 
 评分规则：
 
@@ -296,17 +297,17 @@ class TestCaseEvaluator:
 * 若用例与需求单中任何一条需求都无关，则给0分。若与某一条需求相关程度较高，则根据相关程度给出分数。若同时与多条需求相关，则根据相关程度综合评分。
 * 对低于 10 分的要素给出准确的建议。给出的每一条建议都应当一针见血，字数在10-30之间。
 
-对于每一条用例，在你的回答中评分与建议的格式如下（你的回答只需提供此类表格，应严格按照此标准执行）：
+请为每个测试用例生成如下格式的表格：
 
 | 用例信息                           | 分数  | 改进建议                |
 | ------------------------------ | --- | ------------------- |
-| **用例ID**<br>{{test_case_id}}     | -   | -                   |
-| **用例标题**<br>{{test_case_title}}  | 8   | 改为"验证错误密码登录的失败提示"   |
-| **前置条件**<br>{{prerequisites}}    | 8   | 补充系统版本要求            |
-| **测试步骤**<br>{{step_description}} | 6   | 步骤3增加"等待3秒"         |
-| **预期结果**<br>{{expected_result}}  | 7   | 明确提示位置（如：输入框下方红色文字） |
+| **用例ID**<br>[从JSON中提取真实的test_case_id]     | -   | -                   |
+| **用例标题**<br>[从JSON中提取真实的test_case_title]  | 8   | 改为"验证错误密码登录的失败提示"   |
+| **前置条件**<br>[从JSON中提取真实的prerequisites]    | 8   | 补充系统版本要求            |
+| **测试步骤**<br>[从JSON中提取真实的step_description] | 6   | 步骤3增加"等待3秒"         |
+| **预期结果**<br>[从JSON中提取真实的expected_result]  | 7   | 明确提示位置（如：输入框下方红色文字） |
 
-测试用例：
+测试用例JSON数据：
 {{test_cases_json}}
 """
         return template
@@ -331,11 +332,6 @@ class TestCaseEvaluator:
         test_cases_json = json.dumps(test_cases, ensure_ascii=False, indent=2)
         
         prompt = self.evaluation_prompt_template.format(
-            test_case_id="[批量处理]",
-            test_case_title="[批量处理]",
-            prerequisites="[批量处理]",
-            step_description="[批量处理]",
-            expected_result="[批量处理]",
             requirement_info=requirement_info,
             test_cases_json=test_cases_json
         )
@@ -398,13 +394,8 @@ class TestCaseEvaluator:
         # 获取需求单信息
         requirement_info = self.requirement_kb.get_requirements_for_evaluation()
         
-        # 直接使用模板构建最终提示词（模板已包含所有必要指令）
+        # 构建最终提示词（不再使用可能误导AI的占位符）
         final_prompt = self.evaluation_prompt_template.format(
-            test_case_id="[批量处理]",
-            test_case_title="[批量处理]",
-            prerequisites="[批量处理]",
-            step_description="[批量处理]",
-            expected_result="[批量处理]",
             requirement_info=requirement_info,
             test_cases_json=test_cases_json
         )
@@ -453,13 +444,16 @@ class TestCaseEvaluator:
         for line in lines:
             line = line.strip()
             
-            # 检测表格开始
-            if '| 用例信息 |' in line or '| --- |' in line:
+            # 检测表格开始 - 更宽松的匹配
+            if ('| 用例信息 |' in line or '用例信息' in line) and ('分数' in line or '改进建议' in line):
                 # 如果已经在处理表格，先保存当前表格
                 if table_started and current_table_lines:
                     all_tables.append(current_table_lines[:])
                     current_table_lines = []
                 table_started = True
+                continue
+            elif table_started and '| --- |' in line:
+                # 跳过分隔行
                 continue
             
             # 表格内容行
@@ -499,13 +493,15 @@ class TestCaseEvaluator:
                     suggestion = parts[2]
                     
                     # 检查是否包含用例ID
-                    if '**用例ID**' in field_info:
-                        # 提取用例ID
+                    if '**用例ID**' in field_info or 'ID' in field_info:
+                        # 提取用例ID - 更robust的方式
                         if '<br>' in field_info:
                             id_part = field_info.split('<br>')[-1].strip()
                         else:
-                            # 处理没有<br>的情况，直接从field_info中提取
-                            id_part = field_info.replace('**用例ID**', '').strip()
+                            # 尝试从整行中提取数字ID
+                            import re
+                            id_match = re.search(r'\d{8,}', field_info)  # 匹配8位以上的数字ID
+                            id_part = id_match.group() if id_match else field_info.replace('**用例ID**', '').strip()
                         
                         case_id = id_part
                         print(f"  📝 正在解析用例ID: {case_id}")
@@ -530,9 +526,22 @@ class TestCaseEvaluator:
                             # 将<br>转换为实际换行符，便于阅读
                             field_content = field_content.replace('<br>', '\n')
                         else:
-                            # 处理没有<br>的情况
-                            field_name = field_info.replace('**', '').strip()
-                            field_content = ''
+                            # 处理没有<br>的情况，尝试从 ** 标记后提取内容
+                            if '**' in field_info:
+                                parts = field_info.split('**')
+                                if len(parts) >= 3:  # **字段名**内容
+                                    field_name = parts[1].strip()
+                                    field_content = '**'.join(parts[2:]).strip()
+                                else:
+                                    field_name = field_info.replace('**', '').strip()
+                                    field_content = ''
+                            else:
+                                field_name = field_info.strip()
+                                field_content = ''
+                        
+                        # 去除多余的星号和清理内容
+                        field_name = field_name.replace('*', '').strip()
+                        field_content = field_content.replace('*', '').strip()
                         
                         print(f"    📊 解析字段: {field_name} (分数: {score.strip() if score.strip() != '-' else '无'})")
                         
