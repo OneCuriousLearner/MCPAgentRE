@@ -421,8 +421,8 @@ class TestCaseEvaluator:
         result = await self.api_manager.call_llm(
             prompt=final_prompt,
             session=session,
-            # model="moonshotai/Kimi-K2-Instruct",
-            # endpoint="https://api.siliconflow.cn/v1",
+            model="moonshotai/Kimi-K2-Instruct",
+            endpoint="https://api.siliconflow.cn/v1",
             max_tokens=dynamic_response_tokens
         )
         

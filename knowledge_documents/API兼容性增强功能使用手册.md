@@ -31,6 +31,75 @@ DS_MODEL=deepseek-chat
 SF_KEY=your_siliconflow_api_key
 ```
 
+## call_llm 函数详细说明
+
+### 函数签名
+
+```python
+async def call_llm(self, prompt: str, 
+                  session: aiohttp.ClientSession, 
+                  model: Optional[str] = None, 
+                  endpoint: Optional[str] = None, 
+                  max_tokens: int = 60) -> str
+```
+
+### 参数详解
+
+#### prompt (str, 必需)
+
+- 用户输入的提示词或问题
+- 作为对话内容发送给模型
+- 支持中英文和多种格式的文本
+
+#### session (aiohttp.ClientSession, 必需)
+
+- 异步HTTP会话对象
+- 用于发送API请求
+- 需要在调用前创建并在使用后正确关闭
+
+#### model (Optional[str], 可选)
+
+根据API类型自动选择默认模型，也可显式指定：
+
+**DeepSeek 模型选项:**
+
+- `deepseek-chat` (默认): 通用对话模型，指向DeepSeek-V3-0324
+- `deepseek-reasoner`: 推理模型，指向DeepSeek-R1-0528，支持reasoning_content
+
+**SiliconFlow 模型选项:**
+
+- `moonshotai/Kimi-K2-Instruct` (默认): 月之暗面Kimi模型
+- `Qwen/QwQ-32B`: 通义千问推理模型
+- `deepseek-ai/DeepSeek-V3`: DeepSeek V3模型
+- `THUDM/GLM-4-9B-0414`: 智谱GLM模型
+
+#### endpoint (Optional[str], 可选)
+
+API端点URL，决定使用哪种API：
+
+- `None` (默认): 使用DeepSeek API
+- `https://api.deepseek.com/v1`: 显式指定DeepSeek API
+- `https://api.siliconflow.cn/v1`: 使用SiliconFlow API
+
+#### max_tokens (int, 可选, 默认60)
+
+生成响应的最大token数量：
+
+- **建议值:**
+  - 简短回答: 60-100
+  - 摘要任务: 100-500  
+  - 对话任务: 60-200
+  - 长文本生成: 500-2000
+- **API限制:**
+  - DeepSeek: 根据模型而定
+  - SiliconFlow: 1-16384
+
+### 返回值
+
+- 返回模型生成的文本响应 (str)
+- 对于推理模型，优先返回最终答案，必要时返回推理过程
+- 当max_tokens<100时会自动截断到第一个句号或换行符
+
 ## 使用方法
 
 ### 1. 默认使用 DeepSeek API

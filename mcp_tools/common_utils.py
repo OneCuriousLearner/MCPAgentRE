@@ -61,7 +61,7 @@ class APIManager:
     
     def __init__(self):
         self.deepseek_endpoint = os.getenv("DS_EP", "https://api.deepseek.com/v1")
-        self.deepseek_model = os.getenv("DS_MODEL", "deepseek-chat")  # 默认使用deepseek-chat
+        self.deepseek_model = os.getenv("DS_MODEL", "deepseek-chat")
         self.deepseek_api_key = os.getenv("DS_KEY")
         
         # 硅基流动配置
@@ -96,7 +96,91 @@ class APIManager:
                       model: Optional[str] = None, 
                       endpoint: Optional[str] = None, 
                       max_tokens: int = 60) -> str:
-        """调用在线LLM API，支持DeepSeek和SiliconFlow两种API"""
+        """
+        调用在线LLM API，支持DeepSeek和SiliconFlow两种API
+        
+        该函数自动根据endpoint参数检测API类型，并适配相应的请求格式和错误处理。
+        
+        参数:
+            prompt (str): 用户输入的提示词/问题，作为对话内容发送给模型
+            session (aiohttp.ClientSession): 异步HTTP会话对象，用于发送API请求
+            model (Optional[str]): 指定要使用的模型名称，默认值根据API类型自动选择
+                DeepSeek API模型选项:
+                    - "deepseek-chat" (默认): 通用对话模型，指向DeepSeek-V3-0324
+                    - "deepseek-reasoner": 推理模型，指向DeepSeek-R1-0528，支持reasoning_content字段
+                SiliconFlow API模型选项:
+                    - "moonshotai/Kimi-K2-Instruct" (默认): 月之暗面Kimi模型
+                    - "Qwen/QwQ-32B": 通义千问推理模型  
+                    - "deepseek-ai/DeepSeek-V3": DeepSeek V3模型
+                    - "THUDM/GLM-4-9B-0414": 智谱GLM模型
+                    - 其他支持的模型请参考SiliconFlow API文档
+            endpoint (Optional[str]): API端点URL，用于确定使用哪种API
+                - None (默认): 使用DeepSeek API (https://api.deepseek.com/v1)
+                - "https://api.deepseek.com/v1": 显式指定DeepSeek API
+                - "https://api.siliconflow.cn/v1": 使用SiliconFlow API
+                - 系统通过检测endpoint中是否包含"siliconflow"来自动选择API类型
+            max_tokens (int): 生成响应的最大token数量，默认60
+                - DeepSeek API: 根据模型限制调整
+                - SiliconFlow API: 范围1-16384，默认512
+                - 建议值: 摘要任务100-500，对话任务60-200，长文本生成500-2000
+        
+        返回:
+            str: 模型生成的文本响应
+                - 对于deepseek-reasoner模型: 优先返回content字段，content为空时返回reasoning_content
+                - 对于其他模型: 直接返回content字段内容
+                - 当max_tokens<100时会进行截断处理（截取到第一个句号或换行符）
+        
+        抛出异常:
+            RuntimeError: API调用相关错误，包括:
+                配置错误:
+                    - "SiliconFlow API配置错误": SF_KEY环境变量未设置
+                    - "DeepSeek API配置错误": DS_KEY环境变量未设置
+                
+                网络错误:
+                    - "API请求超时": 网络超时或连接问题
+                    - "API网络请求失败": 其他网络相关错误
+                    - "API返回空字符串": 模型返回空响应
+                    - "API响应格式错误": JSON解析失败或字段缺失
+        
+        使用示例:
+            # 使用默认DeepSeek API
+            result = await api_manager.call_llm(
+                prompt="你好，请介绍一下自己",
+                session=session,
+                max_tokens=100
+            )
+            
+            # 使用DeepSeek推理模型
+            result = await api_manager.call_llm(
+                prompt="解释量子计算的基本原理",
+                session=session,
+                model="deepseek-reasoner",
+                endpoint="https://api.deepseek.com/v1",
+                max_tokens=500
+            )
+            
+            # 使用SiliconFlow的Kimi模型
+            result = await api_manager.call_llm(
+                prompt="分析这段代码的优化建议",
+                session=session,
+                model="moonshotai/Kimi-K2-Instruct",
+                endpoint="https://api.siliconflow.cn/v1",
+                max_tokens=300
+            )
+        
+        环境变量要求:
+            - DS_KEY: DeepSeek API密钥，从 https://platform.deepseek.com/api_keys 获取
+            - SF_KEY: SiliconFlow API密钥，从 https://siliconflow.cn/ 获取
+            - DS_EP: DeepSeek API端点 (可选，默认: https://api.deepseek.com/v1)
+            - DS_MODEL: DeepSeek默认模型 (可选，默认: deepseek-chat)
+        
+        注意事项:
+            - temperature固定为0.2，适合大多数任务场景
+            - DeepSeek API建议根据使用场景设置temperature: 代码生成0.0，数据分析1.0，通用对话1.3
+            - SiliconFlow API默认包含额外参数: top_p=0.7, frequency_penalty=0.5
+            - 请求超时时间设置为300秒
+            - 系统自动处理不同API的请求格式差异
+        """
         # 确定使用的端点和模型
         use_endpoint = endpoint or self.deepseek_endpoint
         
@@ -104,7 +188,6 @@ class APIManager:
         is_siliconflow = "siliconflow" in use_endpoint
         is_deepseek = "deepseek" in use_endpoint
         
-        # 确保 use_model 在任何情况下都已定义
         use_model = None
         payload = {}
         headers = {}
