@@ -83,8 +83,8 @@ class APIManager:
                     "Content-Type": "application/json"
                 }
             return self._sf_headers_cache
-        elif endpoint and "deepseek" in endpoint:
-            # 默认使用DeepSeek配置
+        else:
+            # 默认使用DeepSeek配置（包括endpoint为None的情况）
             if self._deepseek_headers_cache is None:
                 if not self.deepseek_api_key:
                     raise RuntimeError("No DeepSeek API key provided – set DS_KEY environment variable!")
