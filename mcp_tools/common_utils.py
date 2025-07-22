@@ -10,6 +10,7 @@ import aiohttp
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from sentence_transformers import SentenceTransformer
+import asyncio
 
 
 class MCPToolsConfig:
@@ -59,68 +60,168 @@ class APIManager:
     """API调用管理器 - 统一的LLM API调用功能"""
     
     def __init__(self):
-        self.endpoint = os.getenv("DS_EP", "https://api.deepseek.com/v1")
-        self.model = os.getenv("DS_MODEL", "deepseek-chat")  # 默认使用deepseek-chat
-        self.api_key = os.getenv("DS_KEY")
-        self._headers_cache: Optional[Dict[str, str]] = None
+        self.deepseek_endpoint = os.getenv("DS_EP", "https://api.deepseek.com/v1")
+        self.deepseek_model = os.getenv("DS_MODEL", "deepseek-chat")  # 默认使用deepseek-chat
+        self.deepseek_api_key = os.getenv("DS_KEY")
+        
+        # 硅基流动配置
+        self.sf_endpoint = "https://api.siliconflow.cn/v1"
+        self.sf_api_key = os.getenv("SF_KEY")
+        
+        self._deepseek_headers_cache: Optional[Dict[str, str]] = None
+        self._sf_headers_cache: Optional[Dict[str, str]] = None
     
-    def get_headers(self) -> Dict[str, str]:
-        """构建API请求头，检查API密钥是否已设置"""
-        if self._headers_cache is None:
-            if not self.api_key:
-                raise RuntimeError("No API key provided – set DS_KEY environment variable!")
-            self._headers_cache = {"Authorization": f"Bearer {self.api_key}"}
-        return self._headers_cache
+    def get_headers(self, endpoint: Optional[str] = None) -> Dict[str, str]:
+        """构建API请求头，根据endpoint选择对应的API密钥"""
+        # 判断是否为硅基流动端点
+        if endpoint and "siliconflow" in endpoint:
+            if self._sf_headers_cache is None:
+                if not self.sf_api_key:
+                    raise RuntimeError("No SiliconFlow API key provided – set SF_KEY environment variable!")
+                self._sf_headers_cache = {
+                    "Authorization": f"Bearer {self.sf_api_key}",
+                    "Content-Type": "application/json"
+                }
+            return self._sf_headers_cache
+        elif endpoint and "deepseek" in endpoint:
+            # 默认使用DeepSeek配置
+            if self._deepseek_headers_cache is None:
+                if not self.deepseek_api_key:
+                    raise RuntimeError("No DeepSeek API key provided – set DS_KEY environment variable!")
+                self._deepseek_headers_cache = {"Authorization": f"Bearer {self.deepseek_api_key}"}
+            return self._deepseek_headers_cache
     
-    async def call_llm(self, prompt: str, session: aiohttp.ClientSession, 
-                      model: Optional[str] = None, endpoint: Optional[str] = None, 
+    async def call_llm(self, prompt: str, 
+                      session: aiohttp.ClientSession, 
+                      model: Optional[str] = None, 
+                      endpoint: Optional[str] = None, 
                       max_tokens: int = 60) -> str:
-        """调用在线LLM API，支持DeepSeek‑Reasoner的reasoning_content字段"""
+        """调用在线LLM API，支持DeepSeek和SiliconFlow两种API"""
+        # 确定使用的端点和模型
+        use_endpoint = endpoint or self.deepseek_endpoint
+        
+        # 判断是否为硅基流动API
+        is_siliconflow = "siliconflow" in use_endpoint
+        is_deepseek = "deepseek" in use_endpoint
+        
+        # 确保 use_model 在任何情况下都已定义
+        use_model = None
+        payload = {}
+        headers = {}
+        text = ""
+
+        if is_siliconflow:
+            # 硅基流动API配置
+            use_model = model or "moonshotai/Kimi-K2-Instruct"
+            try:
+                headers = self.get_headers(use_endpoint)
+            except RuntimeError as e:
+                raise RuntimeError(f"SiliconFlow API配置错误: {str(e)}\n请设置环境变量 SF_KEY 为您的SiliconFlow API密钥") from e
+            
+            payload = {
+                "model": use_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+                "max_tokens": max_tokens,
+                "temperature": 0.2,
+                "top_p": 0.7,
+                "frequency_penalty": 0.5,
+                "n": 1,
+                "response_format": {"type": "text"}
+            }
+        elif is_deepseek:
+            # DeepSeek API配置
+            use_model = model or self.deepseek_model
+            try:
+                headers = self.get_headers(use_endpoint)
+            except RuntimeError as e:
+                raise RuntimeError(f"DeepSeek API配置错误: {str(e)}\n请设置环境变量 DS_KEY 为您的DeepSeek API密钥") from e
+            
+            payload = {
+                "model": use_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": max_tokens,
+                "temperature": 0.2,
+            }
+        
         try:
-            headers = self.get_headers()  # 检查API密钥
-        except RuntimeError as e:
-            # 抛出更具体的错误信息
-            raise RuntimeError(f"API配置错误: {str(e)}\n请设置环境变量 DS_KEY 为您的DeepSeek API密钥") from e
-        
-        use_model = model or self.model
-        use_endpoint = endpoint or self.endpoint
-        
-        payload = {
-            "model": use_model,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": max_tokens,
-            "temperature": 0.2,
-        }
-        
-        try:
-            async with session.post(f"{use_endpoint}/chat/completions", json=payload, headers=headers, timeout=240) as resp:
+            async with session.post(f"{use_endpoint}/chat/completions", json=payload, headers=headers, timeout=300) as resp:
                 if resp.status != 200:
                     error_text = await resp.text()
-                    raise RuntimeError(f"API调用失败 (状态码: {resp.status}): {error_text}")
+                    
+                    # 根据API类型提供不同的错误信息
+                    if is_siliconflow:
+                        # SiliconFlow API错误处理（根据官方文档）
+                        if resp.status == 400:
+                            raise RuntimeError(f"SiliconFlow API请求参数错误: {error_text}")
+                        elif resp.status == 401:
+                            raise RuntimeError("SiliconFlow API认证失败: Invalid token，请检查SF_KEY环境变量是否正确设置")
+                        elif resp.status == 404:
+                            raise RuntimeError(f"SiliconFlow API页面未找到: 可能是模型不存在或API路径错误 - {use_model}")
+                        elif resp.status == 429:
+                            raise RuntimeError("SiliconFlow API请求速率达到上限: TPM limit reached，请合理规划请求速率或联系 contact@siliconflow.cn")
+                        elif resp.status == 503:
+                            raise RuntimeError("SiliconFlow API服务过载: 模型服务过载，请稍后重试")
+                        elif resp.status == 504:
+                            raise RuntimeError("SiliconFlow API网关超时: 请求超时，请稍后重试")
+                        else:
+                            raise RuntimeError(f"SiliconFlow API调用失败 (状态码: {resp.status}): {error_text}")
+                    elif is_deepseek:
+                        # DeepSeek API错误处理（根据官方文档）
+                        if resp.status == 400:
+                            raise RuntimeError(f"DeepSeek API格式错误: 请求体格式错误。{error_text}")
+                        elif resp.status == 401:
+                            raise RuntimeError("DeepSeek API认证失败: API key错误，请检查DS_KEY环境变量是否正确设置")
+                        elif resp.status == 402:
+                            raise RuntimeError("DeepSeek API余额不足: 账号余额不足，请前往 https://platform.deepseek.com/top_up 充值")
+                        elif resp.status == 422:
+                            raise RuntimeError(f"DeepSeek API参数错误: 请求体参数错误。{error_text}")
+                        elif resp.status == 429:
+                            raise RuntimeError("DeepSeek API请求速率达到上限: 请求速率（TPM或RPM）达到上限，请合理规划请求速率")
+                        elif resp.status == 500:
+                            raise RuntimeError("DeepSeek API服务器故障: 服务器内部故障，请等待后重试")
+                        elif resp.status == 503:
+                            raise RuntimeError("DeepSeek API服务器繁忙: 服务器负载过高，请稍后重试")
+                        else:
+                            raise RuntimeError(f"DeepSeek API调用失败 (状态码: {resp.status}): {error_text}")
+                
                 js = await resp.json()
+        except asyncio.TimeoutError:
+            api_name = "SiliconFlow" if is_siliconflow else "DeepSeek"
+            raise RuntimeError(f"{api_name} API请求超时，请检查网络连接或稍后重试")
         except Exception as e:
-            if "API配置错误" in str(e):
-                raise  # 重新抛出API配置错误
-            raise RuntimeError(f"网络请求失败: {str(e)}")
+            if "API配置错误" in str(e) or "API认证失败" in str(e) or "API调用失败" in str(e):
+                raise  # 重新抛出已知的API错误
+            api_name = "SiliconFlow" if is_siliconflow else "DeepSeek"
+            raise RuntimeError(f"{api_name} API网络请求失败: {str(e)}")
 
         try:
             msg = js["choices"][0]["message"]
             
-            # 仅在使用deepseek-reasoner模型时才获取思考过程
-            if use_model == "deepseek-reasoner":
-                # DeepSeek-Reasoner 把推理和最终回答分开
-                content = msg.get("content", "").strip()
+            if is_siliconflow:
+                # SiliconFlow API响应处理
+                text = msg.get("content", "").strip()
+                # SiliconFlow可能有reasoning_content字段（某些推理模型）
                 reasoning_content = msg.get("reasoning_content", "").strip()
-                
-                # 默认只返回最终回答content，不追加思考过程
-                text = content
-                
-                # 如果最终回答为空，则使用思考内容作为备选
                 if not text and reasoning_content:
                     text = reasoning_content
-            else:
-                # 对于其他模型（如deepseek-chat），直接获取content
-                text = msg.get("content", "").strip()
+            elif is_deepseek:
+                # DeepSeek API响应处理
+                # 仅在使用deepseek-reasoner模型时才获取思考过程
+                if use_model == "deepseek-reasoner":
+                    # DeepSeek-Reasoner 把推理和最终回答分开
+                    content = msg.get("content", "").strip()
+                    reasoning_content = msg.get("reasoning_content", "").strip()
+                    
+                    # 默认只返回最终回答content，不追加思考过程
+                    text = content
+                    
+                    # 如果最终回答为空，则使用思考内容作为备选
+                    if not text and reasoning_content:
+                        text = reasoning_content
+                else:
+                    # 对于其他模型（如deepseek-chat），直接获取content
+                    text = msg.get("content", "").strip()
             
             # 对于摘要生成等长文本任务，保留完整内容
             # 只有在max_tokens较小时（<100）才进行截断处理
@@ -132,12 +233,15 @@ class APIManager:
                         break
             
             if not text:
-                raise RuntimeError("LLM 返回空字符串，可能是 URL / KEY / model 配置问题。响应片段: " + str(js)[:400])
+                api_name = "SiliconFlow" if is_siliconflow else "DeepSeek"
+                raise RuntimeError(f"{api_name} API返回空字符串，可能是模型或配置问题。响应片段: " + str(js)[:400])
             return text
         except KeyError as e:
-            raise RuntimeError(f"API响应格式错误，缺少字段: {str(e)}。响应内容: {str(js)[:400]}")
+            api_name = "SiliconFlow" if is_siliconflow else "DeepSeek"
+            raise RuntimeError(f"{api_name} API响应格式错误，缺少字段: {str(e)}。响应内容: {str(js)[:400]}")
         except Exception as e:
-            raise RuntimeError(f"解析API响应失败: {str(e)}。响应内容: {str(js)[:400]}")
+            api_name = "SiliconFlow" if is_siliconflow else "DeepSeek"
+            raise RuntimeError(f"解析{api_name} API响应失败: {str(e)}。响应内容: {str(js)[:400]}")
 
 
 class ModelManager:

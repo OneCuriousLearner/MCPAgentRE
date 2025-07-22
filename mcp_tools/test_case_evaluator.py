@@ -421,6 +421,8 @@ class TestCaseEvaluator:
         result = await self.api_manager.call_llm(
             prompt=final_prompt,
             session=session,
+            # model="moonshotai/Kimi-K2-Instruct",
+            # endpoint="https://api.siliconflow.cn/v1",
             max_tokens=dynamic_response_tokens
         )
         
@@ -616,9 +618,9 @@ class TestCaseEvaluator:
                     # 评估当前批次
                     ai_result = await self.evaluate_batch(batch_cases, session)
                     print(f"📄 AI返回结果长度: {len(ai_result)}")
-                    print(f"🔍 AI返回结果字符预览: ========================================")
-                    print(f"\n{ai_result}\n......")
-                    print("============================================================")
+                    print(f"🔍 AI返回结果字符预览: ================================================================================")
+                    print(f"\n{ai_result}\n")
+                    print("====================================================================================================")
                     
                     # 解析结果
                     batch_evaluations = self.parse_evaluation_result(ai_result)

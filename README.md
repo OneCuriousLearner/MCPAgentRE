@@ -90,11 +90,14 @@
 * **`load_json_data(file_path)`** - 加载JSON数据文件，支持错误处理，文件不存在时返回空字典
 * **`save_json_data(data, file_path)`** - 保存数据为JSON格式，自动创建目录结构
 
-#### APIManager 类
+#### APIManager 类 【2025年7月22日更新】
 
-* **`__init__()`** - 初始化API管理器，从环境变量读取DeepSeek API配置
-* **`get_headers()`** - 构建API请求头，验证API密钥是否已设置
-* **`call_llm(prompt, session, model, endpoint, max_tokens)`** - 调用在线LLM API，支持DeepSeek-Reasoner的reasoning_content字段
+* **`__init__()`** - 初始化API管理器，支持DeepSeek和SiliconFlow双API配置
+* **`get_headers(endpoint)`** - 智能构建API请求头，根据endpoint自动选择对应的API密钥
+* **`call_llm(prompt, session, model, endpoint, max_tokens)`** - 兼容多API的LLM调用接口
+  * 支持 **DeepSeek API**（默认）：`deepseek-chat`、`deepseek-reasoner` 模型
+  * 支持 **SiliconFlow API**：`moonshotai/Kimi-K2-Instruct` 等模型
+  * 自动检测API类型并适配不同的请求格式和错误处理
 
 #### 全局实例管理函数
 
@@ -207,7 +210,11 @@ MCPAgentRE\
   * WORKSPACE_ID：TAPD项目ID，可通过TAPD平台获取
   * 提交Git时会根据`.gitignore`忽略`api.txt`文件，确保敏感信息不被泄露
 
-2. **DeepSeek API配置（可选）**
+2. **LLM API配置（可选）**
+
+系统现已支持两种LLM API提供商，您可以根据需要选择配置：
+
+#### DeepSeek API配置
 
 如果您需要使用智能摘要功能（`generate_tapd_overview`）或 description 优化功能（`preprocess_tapd_description`），需要配置DeepSeek API密钥：
 
@@ -217,16 +224,33 @@ MCPAgentRE\
 
   ```powershell
   # 临时设置（仅当前会话有效）
-  $env:DS_KEY = "your-api-key-here"
+  $env:DS_KEY = "your-deepseek-api-key-here"
   
   # 永久设置（推荐）
-  [Environment]::SetEnvironmentVariable("DS_KEY", "your-api-key-here", "User")
+  [Environment]::SetEnvironmentVariable("DS_KEY", "your-deepseek-api-key-here", "User")
+  ```
+
+#### SiliconFlow API配置 【🆕 2025年7月22日新增】
+
+SiliconFlow提供多种优质模型，包括Kimi、通义千问等：
+
+* **获取API密钥**：访问 [SiliconFlow 开放平台](https://siliconflow.cn/) 注册并获取API密钥
+
+* **设置环境变量**（Windows PowerShell）：
+
+  ```powershell
+  # 临时设置（仅当前会话有效）
+  $env:SF_KEY = "your-siliconflow-api-key-here"
+  
+  # 永久设置（推荐）
+  [Environment]::SetEnvironmentVariable("SF_KEY", "your-siliconflow-api-key-here", "User")
   ```
 
 * **验证配置**：
 
   ```powershell
   echo $env:DS_KEY
+  echo $env:SF_KEY
   ```
 
 * **注意事项**：
@@ -352,6 +376,16 @@ MCPAgentRE\
 * 测试用例评估器会根据配置的规则评估测试用例质量，并生成评估报告
 * 首次运行时会自动生成默认规则配置文件 `config/test_case_rules.json` 与 `config/require_list_config.json`
 * 详细说明请参阅 `knowledge_documents\AI测试用例评估器操作手册.md`
+
+8. **API兼容性测试** 【🆕 2025年7月22日新增】：
+
+  ```bash
+  uv run test\test_api_compatibility.py
+  ```
+
+* 该脚本会测试DeepSeek和SiliconFlow两种API的连接性和响应
+* 预期输出：显示各API的调用结果和响应内容
+* 用于验证多API配置是否正确
 
 #### 正常模式
 

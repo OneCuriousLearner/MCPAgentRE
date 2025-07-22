@@ -45,7 +45,10 @@ models/*
 
 # MarkDown files
 !knowledge_documents/TAPD API 文档/
+!knowledge_documents/DeepSeek API 文档/
+!knowledge_documents/SiliconFlow API 文档/
 !knowledge_documents/DeepSeek API 环境变量配置指南.md
+!knowledge_documents/API兼容性增强功能使用手册.md
 !knowledge_documents/get_tapd_data工具使用手册.md
 !knowledge_documents/TAPD数据预处理工具使用手册.md
 !knowledge_documents/TAPD词频分析工具使用手册.md
