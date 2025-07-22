@@ -93,7 +93,7 @@ class APIManager:
         }
         
         try:
-            async with session.post(f"{use_endpoint}/chat/completions", json=payload, headers=headers, timeout=120) as resp:
+            async with session.post(f"{use_endpoint}/chat/completions", json=payload, headers=headers, timeout=240) as resp:
                 if resp.status != 200:
                     error_text = await resp.text()
                     raise RuntimeError(f"API调用失败 (状态码: {resp.status}): {error_text}")
