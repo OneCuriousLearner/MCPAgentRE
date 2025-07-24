@@ -12,6 +12,9 @@ wheels/
 # vscode
 .vscode/
 
+# Cursor
+.cursor/
+
 # Claude
 .claude/
 CLAUDE.md

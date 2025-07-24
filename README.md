@@ -10,6 +10,8 @@
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE/badge" alt="TAPD Data Fetcher MCP server" />
 </a>
 
+* 本项目在 Gitee 上同步更新，镜像地址为 [https://gitee.com/ChiTsuHa-Tau5_C/MCPAgentRE](https://gitee.com/ChiTsuHa-Tau5_C/MCPAgentRE)
+
 ## 项目背景
 
 `MCP_Agent:RE`是一个用于从 TAPD 平台获取需求和缺陷数据并生成质量分析报告的 Python 项目，旨在为 AI 客户端提供数据支持。
