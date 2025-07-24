@@ -4,12 +4,13 @@
 
 ![对话效果预览](ClaudePreview.jpg)
 
-* 此项目于2025年6月10日由[punkpeye (Frank Fiegel)](https://github.com/punkpeye)收录于[TAPD Data Fetcher | Glama](https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE)
+* 此项目于2025年6月10日由 [punkpeye (Frank Fiegel)](https://github.com/punkpeye) 收录于 [TAPD Data Fetcher | Glama](https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE)
 
 <a href="https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE/badge" alt="TAPD Data Fetcher MCP server" />
 </a>
 
+* 本项目 GitHub 地址 [https://github.com/OneCuriousLearner/MCPAgentRE](https://github.com/OneCuriousLearner/MCPAgentRE)
 * 本项目在 Gitee 上同步更新，镜像地址为 [https://gitee.com/ChiTsuHa-Tau5_C/MCPAgentRE](https://gitee.com/ChiTsuHa-Tau5_C/MCPAgentRE)
 
 ## 项目背景
@@ -571,3 +572,4 @@ uv run mcp_tools/test_case_evaluator.py
 * [MCP中文站](https://mcpcn.com/docs/introduction/)
 * [Model Context Protocol](https://modelcontextprotocol.io/introduction)
 * [DeepSeek API Docs](https://api-docs.deepseek.com/zh-cn/)
+* [创建对话请求 - SiliconFlow](https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions)
