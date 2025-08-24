@@ -242,10 +242,6 @@ class APIManager:
                 "temperature": 0.2,
             }
         
-        # 显示正在使用的API提供商
-        api_provider = "SiliconFlow" if is_siliconflow else "DeepSeek"
-        print(f"正在调用 {api_provider} API (模型: {use_model})")
-        
         try:
             async with session.post(f"{use_endpoint}/chat/completions", json=payload, headers=headers, timeout=300) as resp:
                 if resp.status != 200:

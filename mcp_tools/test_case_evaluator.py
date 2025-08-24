@@ -408,8 +408,7 @@ class TestCaseEvaluator:
         # 计算请求token数量，动态设置响应token限制
         request_tokens = self.token_counter.count_tokens(final_prompt)
         # 响应token应该与请求token大致相等，但不超过最大响应限制
-        # DeepSeek API限制max_tokens最大为8192
-        dynamic_response_tokens = min(request_tokens * 2, self.max_response_tokens, 8192)  # 批量处理需要更多响应空间
+        dynamic_response_tokens = min(request_tokens * 2, self.max_response_tokens)  # 批量处理需要更多响应空间
         
         print(f"批量处理 {len(test_cases)} 个用例: 请求tokens={request_tokens}, 响应tokens限制={dynamic_response_tokens}")
         
@@ -679,8 +678,8 @@ async def main_process(test_batch_count: Optional[int] = None):
     
     config = get_config()
     processor = TestCaseProcessor()
-    # 32K总上下文：支持更大批次处理
-    evaluator = TestCaseEvaluator(max_context_tokens=32000)
+    # 12K总上下文：3.6K请求 + 7.2K响应 + 2.4K缓冲
+    evaluator = TestCaseEvaluator(max_context_tokens=12000)
     
     # 获取规则配置中的优先级比例要求
     rules_config = get_test_case_rules()
