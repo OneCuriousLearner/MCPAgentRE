@@ -417,12 +417,10 @@ class TestCaseEvaluator:
         print(f"正在处理的测试用例: {', '.join(processing_ids)}")
         print("正在调用AI进行评估...")
         
-        # 调用AI API
+        # 调用AI API（使用默认配置，支持环境变量自动检测）
         result = await self.api_manager.call_llm(
             prompt=final_prompt,
             session=session,
-            model="moonshotai/Kimi-K2-Instruct",
-            endpoint="https://api.siliconflow.cn/v1",
             max_tokens=dynamic_response_tokens
         )
         
