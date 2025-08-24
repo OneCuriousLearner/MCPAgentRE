@@ -57,13 +57,28 @@ class MCPToolsConfig:
 
 class APIManager:
     """API调用管理器 - 统一的LLM API调用功能"""
-    
+
     def __init__(self):
-        self.endpoint = os.getenv("DS_EP", "https://api.deepseek.com/v1")
-        self.model = os.getenv("DS_MODEL", "deepseek-chat")  # 默认使用deepseek-chat
-        self.api_key = os.getenv("DS_KEY")
+        # 按优先级检测可用的API配置
+        if os.getenv("SF_KEY"):
+            # 硅基流动API
+            self.endpoint = "https://api.siliconflow.cn/v1"
+            self.model = "deepseek-ai/deepseek-r1-distill-llama-70b"
+            self.api_key = os.getenv("SF_KEY")
+            self.provider = "SiliconFlow"
+        elif os.getenv("DS_KEY"):
+            # DeepSeek API
+            self.endpoint = os.getenv("DS_EP", "https://api.deepseek.com/v1")
+            self.model = os.getenv("DS_MODEL", "deepseek-chat")
+            self.api_key = os.getenv("DS_KEY")
+            self.provider = "DeepSeek"
+        else:
+            # 未配置任何API
+            self.provider = None
+            self.api_key = None
+        
         self._headers_cache: Optional[Dict[str, str]] = None
-    
+
     def get_headers(self) -> Dict[str, str]:
         """构建API请求头，检查API密钥是否已设置"""
         if self._headers_cache is None:

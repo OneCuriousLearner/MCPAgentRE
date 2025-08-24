@@ -14,6 +14,7 @@ wheels/
 
 # Claude
 .claude/
+CLAUDE.md
 
 # idea
 .idea/
@@ -41,3 +42,11 @@ models/*
 # Claude configuration
 CLAUDE.md
 nul
+
+# Test case evaluation files and results  
+test_results/
+*TestCase_*.xlsx
+*TestCase_*.json
+*Proceed_TestCase_*.json
+evaluation_report*.json
+evaluation_report*.md
