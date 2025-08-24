@@ -190,7 +190,7 @@ class APIManager:
             - 系统自动处理不同API的请求格式差异
         """
         # 确定使用的端点和模型
-        use_endpoint = endpoint or self.deepseek_endpoint
+        use_endpoint = endpoint or self.sf_endpoint
         
         # 判断是否为硅基流动API
         is_siliconflow = "siliconflow" in use_endpoint
@@ -241,6 +241,10 @@ class APIManager:
                 "max_tokens": max_tokens,
                 "temperature": 0.2,
             }
+        
+        # 显示正在使用的API提供商
+        api_provider = "SiliconFlow" if is_siliconflow else "DeepSeek"
+        print(f"正在调用 {api_provider} API (模型: {use_model})")
         
         try:
             async with session.post(f"{use_endpoint}/chat/completions", json=payload, headers=headers, timeout=300) as resp:
