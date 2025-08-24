@@ -680,8 +680,8 @@ async def main_process(test_batch_count: Optional[int] = None):
     
     config = get_config()
     processor = TestCaseProcessor()
-    # 12K总上下文：3.6K请求 + 7.2K响应 + 2.4K缓冲
-    evaluator = TestCaseEvaluator(max_context_tokens=12000)
+    # 32K总上下文：支持更大批次处理
+    evaluator = TestCaseEvaluator(max_context_tokens=32000)
     
     # 获取规则配置中的优先级比例要求
     rules_config = get_test_case_rules()
