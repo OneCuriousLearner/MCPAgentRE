@@ -320,7 +320,11 @@ async def generate_tapd_overview(
     since: str = "2025-01-01",
     until: str = datetime.now().strftime("%Y-%m-%d"),
     max_total_tokens: int = 6000,
-    use_local_data: bool = True
+    use_local_data: bool = True,
+    ack_mode: str = "ack_only",
+    max_retries: int = 2,
+    retry_backoff: float = 1.5,
+    chunk_size: int = 0
 ) -> str:
     """生成TAPD数据的智能概览和摘要
     
@@ -381,6 +385,7 @@ async def generate_tapd_overview(
         
         print(f"[AI分析] 开始调用AI生成智能概览分析...")
         print("[处理中] 正在处理数据并生成质量分析报告，预计需要10-20秒...")
+        print(f"[可靠传输] ACK模式: {ack_mode}，重试次数: {max_retries}，回退: {retry_backoff}，分块大小: {chunk_size or '自动'}")
         
         # 调用上下文优化器
         overview = await build_overview(
@@ -388,7 +393,11 @@ async def generate_tapd_overview(
             fetch_bug=fetch_bug,
             since=since,
             until=until,
-            max_total_tokens=max_total_tokens
+            max_total_tokens=max_total_tokens,
+            ack_mode=ack_mode,
+            max_retries=max_retries,
+            retry_backoff=retry_backoff,
+            chunk_size=chunk_size
         )
         
         print("[分析完成] AI分析完成，正在整理输出结果...")
