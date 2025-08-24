@@ -62,7 +62,7 @@ class MCPToolsConfig:
 
 class APIManager:
     """API调用管理器 - 统一的LLM API调用功能"""
-    
+
     def __init__(self):
         self.deepseek_endpoint = os.getenv("DS_EP", "https://api.deepseek.com/v1")
         self.deepseek_model = os.getenv("DS_MODEL", "deepseek-chat")

@@ -62,3 +62,12 @@ models/*
 !knowledge_documents/测试用例规则自定义功能使用手册.md
 !knowledge_documents/历史需求知识库使用指南.md
 !knowledge_documents/AI测试用例评估器操作手册.md
+
+# Test case evaluation files and results  
+test_results/
+*TestCase_*.xlsx
+*TestCase_*.json
+*Proceed_TestCase_*.json
+evaluation_report*.json
+evaluation_report*.md
+nul
