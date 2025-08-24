@@ -19,6 +19,9 @@ wheels/
 .claude/
 CLAUDE.md
 
+# CodeBuddy
+.codebuddy/
+
 # idea
 .idea/
 

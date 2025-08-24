@@ -44,7 +44,7 @@
 #### 数据生成与分析工具
 
 * **`generate_fake_tapd_data(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)`** - 生成模拟 TAPD 数据，用于测试和演示（若不指明地址，使用后可能会覆盖本地数据，若需要来自 API 的正确数据，请再次调用数据获取工具）
-* **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API 密钥）
+* **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek 或 SiliconFlow API 密钥）
 * **`analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)`** - 分析TAPD数据的词频分布，生成关键词词云统计，为搜索功能提供精准关键词建议
 
 #### 示例工具
@@ -219,7 +219,7 @@ MCPAgentRE\
 
 #### DeepSeek API配置
 
-如果您需要使用智能摘要功能（`generate_tapd_overview`）或 description 优化功能（`preprocess_tapd_description`），需要配置DeepSeek API密钥：
+如果您需要使用智能摘要功能（`generate_tapd_overview`）或 description 优化功能（`preprocess_tapd_description`），需要配置DeepSeek 或 SiliconFlow API密钥：
 
 * **获取API密钥**：访问 [DeepSeek 开放平台](https://platform.deepseek.com/) 注册并获取API密钥
 
@@ -260,7 +260,9 @@ SiliconFlow提供多种优质模型，包括Kimi、通义千问等：
 
 * 设置环境变量后需重启编辑器和MCP客户端
 * 如果不配置API密钥，智能摘要工具会返回错误提示，但不影响其他功能的使用
-* 详细配置说明请参考 `knowledge_documents/DeepSeek API 环境变量配置指南.md`
+* 若需要使用SiliconFlow的其他模型，可在 `mcp_tools\common_utils.py` 文件头部修改 `SF_DEFAULT_MODEL` 变量
+* 详细配置说明请参考 [SiliconFlow API Docs](https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions#llm)
+ 与 [DeepSeek API Docs](https://api-docs.deepseek.com/zh-cn/)
 
 ### 五、测试运行
 

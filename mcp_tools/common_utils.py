@@ -12,6 +12,10 @@ from typing import Optional, Dict, Any, List
 from sentence_transformers import SentenceTransformer
 import asyncio
 
+# SiliconFlow 默认模型（可通过环境变量 SF_MODEL 覆盖）
+# 若要查看可用的模型，请前往 https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions
+SF_DEFAULT_MODEL = os.getenv("SF_MODEL", "moonshotai/Kimi-K2-Instruct")
+
 
 class MCPToolsConfig:
     """MCP工具配置管理器"""
@@ -109,7 +113,7 @@ class APIManager:
                     - "deepseek-chat" (默认): 通用对话模型，指向DeepSeek-V3-0324
                     - "deepseek-reasoner": 推理模型，指向DeepSeek-R1-0528，支持reasoning_content字段
                 SiliconFlow API模型选项:
-                    - "moonshotai/Kimi-K2-Instruct" (默认): 月之暗面Kimi模型
+                    - "moonshotai/Kimi-K2-Instruct" (默认，可通过环境变量 SF_MODEL 或常量 SF_DEFAULT_MODEL 覆盖): 月之暗面Kimi模型
                     - "Qwen/QwQ-32B": 通义千问推理模型  
                     - "deepseek-ai/DeepSeek-V3": DeepSeek V3模型
                     - "THUDM/GLM-4-9B-0414": 智谱GLM模型
@@ -171,6 +175,7 @@ class APIManager:
         环境变量要求:
             - DS_KEY: DeepSeek API密钥，从 https://platform.deepseek.com/api_keys 获取
             - SF_KEY: SiliconFlow API密钥，从 https://siliconflow.cn/ 获取
+            - SF_MODEL: 覆盖 SiliconFlow 默认模型 (可选，默认: moonshotai/Kimi-K2-Instruct)
             - DS_EP: DeepSeek API端点 (可选，默认: https://api.deepseek.com/v1)
             - DS_MODEL: DeepSeek默认模型 (可选，默认: deepseek-chat)
         
@@ -195,7 +200,7 @@ class APIManager:
 
         if is_siliconflow:
             # 硅基流动API配置
-            use_model = model or "moonshotai/Kimi-K2-Instruct"
+            use_model = model or SF_DEFAULT_MODEL
             try:
                 headers = self.get_headers(use_endpoint)
             except RuntimeError as e:
