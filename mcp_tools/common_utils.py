@@ -11,6 +11,9 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 from sentence_transformers import SentenceTransformer
 import asyncio
+# 新增：正则与UUID工具
+import re
+import uuid
 
 # SiliconFlow 默认模型（可通过环境变量 SF_MODEL 覆盖）
 # 若要查看可用的模型，请前往 https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions
@@ -551,75 +554,6 @@ class FileManager:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-# 新增：正则与UUID工具
-import re
-import uuid
-
-# ... existing code ...
-class FileManager:
-    """文件管理工具"""
-    
-    def __init__(self, config: MCPToolsConfig):
-        self.config = config
-    
-    def load_tapd_data(self, file_path: Optional[str] = None) -> Dict[str, Any]:
-        """
-        加载TAPD数据
-        
-        参数:
-            file_path: 数据文件路径，如果为None则使用默认路径
-            
-        返回:
-            Dict: TAPD数据字典
-        """
-        if file_path is None:
-            # 使用默认路径
-            file_path = self.config.get_data_file_path()
-        elif not os.path.isabs(file_path):
-            # 相对路径处理：直接使用 get_data_file_path 来统一处理
-            file_path = self.config.get_data_file_path(file_path)
-        
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"数据文件不存在: {file_path}")
-        
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    
-    def load_json_data(self, file_path: str) -> Dict[str, Any]:
-        """
-        加载JSON数据
-        
-        参数:
-            file_path: 数据文件路径
-            
-        返回:
-            Dict: JSON数据
-        """
-        if not os.path.exists(file_path):
-            return {}
-        
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
-            print(f"加载JSON文件失败: {file_path}, 错误: {str(e)}")
-            return {}
-
-    def save_json_data(self, data: Dict[str, Any], file_path: str):
-        """
-        保存JSON数据
-        
-        参数:
-            data: 要保存的数据
-            file_path: 保存路径
-        """
-        # 确保目录存在
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-
-
 # 新增：可靠传输与ACK管理器
 class TransmissionManager:
     """管理分块数据的标识、ACK校验、重试与报告输出"""
@@ -736,6 +670,13 @@ class TransmissionManager:
         return report
 
 
+# 全局实例管理
+_global_config: Optional[MCPToolsConfig] = None
+_global_model_manager: Optional[ModelManager] = None
+_global_file_manager: Optional[FileManager] = None
+_global_api_manager: Optional[APIManager] = None
+_global_transmission_manager: Optional[TransmissionManager] = None
+
 def get_config() -> MCPToolsConfig:
     """获取全局配置实例"""
     global _global_config
@@ -766,3 +707,10 @@ def get_api_manager() -> APIManager:
     if _global_api_manager is None:
         _global_api_manager = APIManager()
     return _global_api_manager
+
+def get_transmission_manager() -> TransmissionManager:
+    """获取全局传输管理器实例"""
+    global _global_transmission_manager
+    if _global_transmission_manager is None:
+        _global_transmission_manager = TransmissionManager(get_file_manager())
+    return _global_transmission_manager
