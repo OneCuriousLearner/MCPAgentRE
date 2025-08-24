@@ -214,7 +214,7 @@ class TestCaseProcessor:
 class TestCaseEvaluator:
     """测试用例AI评估器"""
     
-    def __init__(self, max_context_tokens: int = 32000):
+    def __init__(self, max_context_tokens: int = 12000):
         self.config = get_config()
         self.api_manager = get_api_manager()
         self.file_manager = get_file_manager()
@@ -676,7 +676,7 @@ async def main_process(test_batch_count: Optional[int] = None):
     from collections import Counter
     start_time = datetime.now()
     start_time_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
-    print(f"\n⏱️ 开始处理时间: {start_time_str}")
+    print(f"\n开始处理时间: {start_time_str}")
     
     config = get_config()
     processor = TestCaseProcessor()
@@ -726,7 +726,7 @@ async def main_process(test_batch_count: Optional[int] = None):
         level_percentages = {}
         level_compliance = {}
         
-        print("\n📊 测试用例优先级分布分析：")
+        print("\n测试用例优先级分布分析：")
         for level, count in level_counter.items():
             percentage = (count / total_cases) * 100
             level_percentages[level] = percentage
@@ -756,7 +756,7 @@ async def main_process(test_batch_count: Optional[int] = None):
                 "reason": reason
             }
             
-            compliance_icon = "✅" if is_compliant else "❌"
+            compliance_icon = "√" if is_compliant else "×"
             print(f"{compliance_icon} {level}: {count} 条 ({percentage:.1f}%) - {reason}")
         
         # 步骤3: AI评估
@@ -796,15 +796,15 @@ async def main_process(test_batch_count: Optional[int] = None):
     end_time_str = end_time.strftime("%Y-%m-%d %H:%M:%S")
     total_seconds = (end_time - start_time).total_seconds()
     
-    print(f"\n⏱️ 结束处理时间: {end_time_str}")
-    print(f"⏱️ 总处理时间: {total_seconds:.2f} 秒")
+    print(f"\n结束处理时间: {end_time_str}")
+    print(f"总处理时间: {total_seconds:.2f} 秒")
     
     # 计算平均每条数据的处理时间
     if evaluations and len(evaluations) > 0:
         avg_time_per_case = total_seconds / len(evaluations)
-        print(f"⏱️ 平均每条数据处理时间: {avg_time_per_case:.2f} 秒/条")
+        print(f"平均每条数据处理时间: {avg_time_per_case:.2f} 秒/条")
     else:
-        print("⏱️ 无法计算平均处理时间：没有成功处理的数据")
+        print("无法计算平均处理时间：没有成功处理的数据")
 
 
 if __name__ == "__main__":

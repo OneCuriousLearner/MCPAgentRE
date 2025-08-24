@@ -193,14 +193,22 @@ class APIManager:
         is_siliconflow = "siliconflow" in use_endpoint
         is_deepseek = "deepseek" in use_endpoint
         
-        use_model = None
+        # 确定使用的模型
+        if is_siliconflow:
+            use_model = model or SF_DEFAULT_MODEL
+        elif is_deepseek:
+            use_model = model or self.deepseek_model
+        else:
+            use_model = model or self.deepseek_model
+            
         payload = {}
         headers = {}
         text = ""
 
+        print(f"API调用参数: endpoint={use_endpoint}, model={use_model}, max_tokens={max_tokens}")
+
         if is_siliconflow:
             # 硅基流动API配置
-            use_model = model or SF_DEFAULT_MODEL
             try:
                 headers = self.get_headers(use_endpoint)
             except RuntimeError as e:
@@ -219,7 +227,6 @@ class APIManager:
             }
         elif is_deepseek:
             # DeepSeek API配置
-            use_model = model or self.deepseek_model
             try:
                 headers = self.get_headers(use_endpoint)
             except RuntimeError as e:

@@ -51,7 +51,7 @@
 	* 当数据量较小（如小于 50 条）时，可以使用 `get_tapd_stories()` 与 `get_tapd_bugs()` 直接从 API 获取未经处理的数据，但不会保存至本地。
 	* 或者使用 `generate_fake_tapd_data(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)` 生成假数据，可用于测试模拟，此操作会覆盖本地 JSON 数据，重新使用 `get_tapd_data()` 可恢复。假数据默认存储于 `local_data\preprocessed_data.json`
 
-2. **生成项目概览（可选）**：使用 `generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)` 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API，需要提醒用户）。
+2. **生成项目概览（可选）**：使用 `generate_tapd_overview(since, until, max_total_tokens, use_local_data)` 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API，需要提醒用户）。
 	* `use_local_data=True`（默认）：使用本地数据文件进行分析，适合测试和离线分析
 	* `use_local_data=False`：从TAPD API获取最新数据进行分析，适合实时数据分析
 	* 注意，此功能仅生成概览，不推荐优先使用。

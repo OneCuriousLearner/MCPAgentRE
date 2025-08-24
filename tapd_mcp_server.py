@@ -320,16 +320,14 @@ async def generate_tapd_overview(
     since: str = "2025-01-01",
     until: str = datetime.now().strftime("%Y-%m-%d"),
     max_total_tokens: int = 6000,
-    model: str = "moonshotai/Kimi-K2-Instruct",
-    endpoint: str = "https://api.siliconflow.cn/v1",
     use_local_data: bool = True
 ) -> str:
-    """生成TAPD数据的智能概览和摘要（默认使用 SiliconFlow API）
+    """生成TAPD数据的智能概览和摘要
     
     功能描述:
         - 使用上下文优化器处理大型TAPD数据集
         - 基于token数量自动分块数据，避免token超限问题
-        - 集成在线LLM API（默认 SiliconFlow，兼容 DeepSeek 等）进行智能摘要
+        - 集成在线LLM API进行智能摘要
         - 递归摘要生成，将多个数据块的摘要合并为总体概览
         - 支持时间范围过滤，获取指定期间的数据摘要
         
@@ -337,22 +335,13 @@ async def generate_tapd_overview(
         since (str): 开始时间，格式为 YYYY-MM-DD，默认 "2025-01-01"
         until (str): 结束时间，格式为 YYYY-MM-DD，默认为当前系统日期
         max_total_tokens (int): 最大token数量，默认6000
-        model (str): LLM模型名称
-            - 当 endpoint 指向 SiliconFlow 时，建议使用:
-              "moonshotai/Kimi-K2-Instruct"（默认）、"Qwen/QwQ-32B"、"deepseek-ai/DeepSeek-V3" 等
-            - 当 endpoint 指向 DeepSeek 时，可使用:
-              "deepseek-chat"（默认）、"deepseek-reasoner"
-        endpoint (str): API端点URL
-            - 默认: "https://api.siliconflow.cn/v1"（SiliconFlow）
-            - 可选: "https://api.deepseek.com/v1"（DeepSeek）
         use_local_data (bool): 是否使用本地数据，默认True（使用本地文件），False时从TAPD API获取最新数据
         
     返回:
         str: 概览结果的JSON字符串，包含数据统计和智能摘要
         
     注意事项:
-        - 默认使用 SiliconFlow，需配置环境变量 SF_KEY（从 https://siliconflow.cn/ 获取）
-        - 若使用 DeepSeek，需配置 DS_KEY（从 https://platform.deepseek.com/api_keys 获取）
+        - 需配置环境变量 SF_KEY (SiliconFlow) 或 DS_KEY (DeepSeek)
         - 首次使用时需要确保网络连接正常，用于调用在线LLM
         - 处理大量数据时可能需要较长时间
         
@@ -390,8 +379,7 @@ async def generate_tapd_overview(
             # 直接返回已筛选的数据，无需分页处理
             return bugs_data
         
-        print(f"[AI分析] 开始调用AI生成智能概览分析（模型：{model}）...")
-        print(f"[AI配置] endpoint: {endpoint}")
+        print(f"[AI分析] 开始调用AI生成智能概览分析...")
         print("[处理中] 正在处理数据并生成质量分析报告，预计需要10-20秒...")
         
         # 调用上下文优化器
@@ -400,18 +388,16 @@ async def generate_tapd_overview(
             fetch_bug=fetch_bug,
             since=since,
             until=until,
-            max_total_tokens=max_total_tokens,
-            model=model,
-            endpoint=endpoint
+            max_total_tokens=max_total_tokens
         )
         
         print("[分析完成] AI分析完成，正在整理输出结果...")
         
         # 检查摘要是否包含错误信息
         summary_text = overview.get("summary_text", "")
-        if "无法生成智能摘要" in summary_text or "API配置错误" in summary_text or "SiliconFlow API配置错误" in summary_text:
+        if "无法生成智能摘要" in summary_text or "API配置错误" in summary_text:
             # 如果摘要包含错误信息，返回错误状态
-            suggestion = "请设置环境变量 SF_KEY 为您的SiliconFlow API密钥" if "siliconflow" in (endpoint or "").lower() else "请设置环境变量 DS_KEY 为您的DeepSeek API密钥"
+            suggestion = "请检查环境变量 SF_KEY (SiliconFlow) 或 DS_KEY (DeepSeek) 是否已正确设置"
             error_result = {
                 "status": "error",
                 "message": "智能摘要生成失败",

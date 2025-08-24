@@ -63,13 +63,13 @@ def chunkify(items: List[Dict], max_tokens: int = 1000) -> List[List[Dict]]:
 # 3. Online summariser using unified API manager
 # ---------------------------------------------------------------------------
 
-async def call_llm(prompt: str, session: aiohttp.ClientSession, *, model: str, endpoint: str, max_tokens: int = 60) -> str:
+async def call_llm(prompt: str, session: aiohttp.ClientSession, *, max_tokens: int = 60) -> str:
     """调用在线LLM API，使用统一的API管理器"""
     api_manager = get_api_manager()
-    return await api_manager.call_llm(prompt, session, model=model, endpoint=endpoint, max_tokens=max_tokens)
+    return await api_manager.call_llm(prompt, session, max_tokens=max_tokens)
 
 
-async def summarize_chunk(chunk: List[Dict], session: aiohttp.ClientSession, *, model: str, endpoint: str) -> str:
+async def summarize_chunk(chunk: List[Dict], session: aiohttp.ClientSession) -> str:
     """对单个数据块生成详细摘要（100-300字）"""
     # 提取TAPD数据的关键信息，处理需求和缺陷的不同字段
     items_info = []
@@ -105,10 +105,10 @@ async def summarize_chunk(chunk: List[Dict], session: aiohttp.ClientSession, *, 
 
 生成专业的项目质量分析摘要："""
     
-    return await call_llm(prompt, session, model=model, endpoint=endpoint, max_tokens=600)
+    return await call_llm(prompt, session, max_tokens=600)
 
 
-async def recursive_summary(sentences: List[str], session: aiohttp.ClientSession, *, model: str, endpoint: str) -> str:
+async def recursive_summary(sentences: List[str], session: aiohttp.ClientSession) -> str:
     """递归合并多个分块摘要为完整的项目概览（300-500字）"""
     if len(sentences) == 1:
         return sentences[0]
@@ -125,7 +125,7 @@ async def recursive_summary(sentences: List[str], session: aiohttp.ClientSession
 4. 关键改进建议
 
 TAPD项目质量概览："""
-    return await call_llm(merged_prompt, session, model=model, endpoint=endpoint, max_tokens=800)
+    return await call_llm(merged_prompt, session, max_tokens=800)
 
 # ---------------------------------------------------------------------------
 # 4. build_overview
@@ -138,8 +138,6 @@ async def build_overview(
     since: str = "2025-01-01",
     until: str = "2025-12-31",
     max_total_tokens: int = 6000,
-    model: str = "deepseek-chat",
-    endpoint: str = "https://api.deepseek.com/v1",
 ) -> Dict:
     """构建TAPD项目概览，支持时间范围过滤和智能摘要生成"""
     
@@ -198,14 +196,14 @@ async def build_overview(
             chunk_summaries = []
             for i, chunk in enumerate(chunks):
                 print(f"[处理进度] 正在处理第 {i+1}/{len(chunks)} 个数据块...")
-                summary = await summarize_chunk(chunk, session, model=model, endpoint=endpoint)
+                summary = await summarize_chunk(chunk, session)
                 chunk_summaries.append(summary)
                 print(f"[完成] 完成第 {i+1}/{len(chunks)} 个数据块的摘要生成")
             
             # 递归合并摘要
             if len(chunk_summaries) > 1:
                 print("[合并中] 正在合并多个数据块的摘要...")
-                summary_text = await recursive_summary(chunk_summaries, session, model=model, endpoint=endpoint)
+                summary_text = await recursive_summary(chunk_summaries, session)
                 print("[合并完成] 摘要合并完成")
             else:
                 summary_text = chunk_summaries[0] if chunk_summaries else "无法生成摘要。"
@@ -245,8 +243,6 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser(description="Generate TAPD overview via online LLM (DeepSeek/Qwen)")
     ap.add_argument("-f", "--file", default="local_data/msg_from_fetcher.json", help="path to real TAPD data json file")
-    ap.add_argument("--model", default="deepseek-chat", help="LLM model name – e.g. deepseek-chat / qwen:chat")
-    ap.add_argument("--endpoint", default="https://api.deepseek.com/v1", help="Chat completion endpoint URL")
     ap.add_argument("--offline", action="store_true", help="return dummy summary (no LLM call)")
     ap.add_argument("--debug", action="store_true", help="print counters")
     args = ap.parse_args()
@@ -296,9 +292,7 @@ if __name__ == "__main__":
             # 在线模式：调用LLM生成智能摘要
             result = await build_overview(
                 fetch_story=fetch_story,
-                fetch_bug=fetch_bug,
-                model=args.model,
-                endpoint=args.endpoint
+                fetch_bug=fetch_bug
             )
         
         print(json.dumps(result, indent=2, ensure_ascii=False))
