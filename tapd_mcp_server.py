@@ -622,25 +622,32 @@ async def enhance_tapd_with_knowledge(
     testcase_file: Optional[str] = None
 ) -> str:
     """
-    增强TAPD数据，添加测试用例关联信息
+    分析TAPD数据并构建历史需求知识库
     
     功能描述:
-        - 在现有TAPD数据基础上添加知识库信息
-        - 为每个需求添加功能类型、测试用例建议、关键词等
-        - 不创建新数据库，直接增强现有数据文件
-        - 自动备份原文件，增强后的数据可直接用于search_data()
+        - 从TAPD数据中分析需求信息，构建独立的知识库配置文件
+        - 为每个需求分析功能类型、测试用例建议、关键词等
+        - 仅读取原始数据文件，不修改原始TAPD数据
+        - 知识库信息保存到 config/knowledge_base_config.json
+        - 采用与test_case_require_list_knowledge_base.py相同的数据管理方式
         
     参数:
         tapd_file (str): TAPD数据文件路径，默认"local_data/msg_from_fetcher.json"
         testcase_file (Optional[str]): 测试用例Excel文件路径，可选
         
     返回:
-        str: 增强结果的JSON字符串
+        str: 知识库分析结果的JSON字符串
         
     使用场景:
-        - 在使用search_data()搜索需求前，先增强数据
-        - 让搜索结果包含测试用例建议和功能分类
-        - 提高需求分析和测试用例编写的效率
+        - 构建项目需求知识库，为后续分析提供参考
+        - 分析需求功能类型分布和关键词映射
+        - 为测试用例设计提供历史需求参考
+        - 支持需求趋势分析和模式识别
+        
+    注意事项:
+        - 原始TAPD数据文件保持不变
+        - 知识库配置文件独立存储在config目录
+        - 可重复执行以更新知识库信息
     """
     try:
         result = enhance_tapd_data_with_knowledge(tapd_file, testcase_file)

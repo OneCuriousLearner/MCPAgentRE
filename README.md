@@ -4,11 +4,14 @@
 
 ![对话效果预览](ClaudePreview.jpg)
 
-* 此项目于2025年6月10日由[punkpeye (Frank Fiegel)](https://github.com/punkpeye)收录于[TAPD Data Fetcher | Glama](https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE)
+* 此项目于2025年6月10日由 [punkpeye (Frank Fiegel)](https://github.com/punkpeye) 收录于 [TAPD Data Fetcher | Glama](https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE)
 
 <a href="https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@OneCuriousLearner/MCPAgentRE/badge" alt="TAPD Data Fetcher MCP server" />
 </a>
+
+* 本项目 GitHub 地址 [https://github.com/OneCuriousLearner/MCPAgentRE](https://github.com/OneCuriousLearner/MCPAgentRE)
+* 本项目在 Gitee 上同步更新，镜像地址为 [https://gitee.com/ChiTsuHa-Tau5_C/MCPAgentRE](https://gitee.com/ChiTsuHa-Tau5_C/MCPAgentRE)
 
 ## 项目背景
 
@@ -44,48 +47,19 @@
 * **`generate_tapd_overview(since, until, max_total_tokens, model, endpoint, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API 密钥）
 * **`analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)`** - 分析TAPD数据的词频分布，生成关键词词云统计，为搜索功能提供精准关键词建议
 
-#### 历史需求知识库
-
-* **`enhance_tapd_with_knowledge(tapd_file, testcase_file)`** - 增强TAPD数据，添加功能分类、测试用例建议和关键词信息，让现有的`search_data()`工具返回更有价值的搜索结果
-
 #### 示例工具
 
 * **`example_tool(param1, param2)`** - 示例工具，展示 MCP 工具注册方式
 
 这些工具支持从数据获取到智能分析的完整工作流，为 AI 驱动的测试管理提供强大支持。
 
-## 快速开始
+### 可用的 WorkFlow 脚本
 
-### 基础使用流程
+#### 测试用例评估
 
-1. **获取TAPD数据**
-   ```bash
-   uv run tapd_data_fetcher.py
-   ```
-
-2. **增强数据（添加知识库信息）**
-   ```bash
-   # 仅使用TAPD数据
-   uv run mcp_tools\knowledge_base.py
-   
-   # 结合测试用例Excel文件
-   uv run mcp_tools\knowledge_base.py -c "path/to/testcase.xlsx"
-   ```
-
-3. **智能搜索需求**
-   - 通过MCP客户端调用 `search_data("搜索内容")` 
-   - 搜索结果将包含功能分类、测试用例建议等增强信息
-
-### 历史需求知识库使用
-
-**功能说明：** 为TAPD需求数据添加功能分类、测试用例建议和关键词，提升搜索体验
-
-**使用步骤：**
-1. 确保已有TAPD数据：`uv run tapd_data_fetcher.py`
-2. 增强数据：`uv run mcp_tools\knowledge_base.py -c "测试用例文件.xlsx"`
-3. 使用 `search_data()` 工具搜索，结果将包含测试用例建议
-
-详细说明请参考：`knowledge_documents/历史需求知识库使用指南.md`
+* `mcp_tools\test_case_rules_customer.py` - 测试用例评估规则配置脚本，用于配置测试用例的评估标准和优先级
+* `mcp_tools\test_case_require_list_knowledge_base.py` - 测试用例需求知识库生成脚本，可从 TAPD 数据中提取需求信息并生成知识库，或手动修改需求信息
+* `mcp_tools\test_case_evaluator.py` - 测试用例AI评估器脚本，用于根据配置的规则评估测试用例质量，并生成评估报告至本地文件
 
 ### 统一接口脚本
 
@@ -119,11 +93,14 @@
 * **`load_json_data(file_path)`** - 加载JSON数据文件，支持错误处理，文件不存在时返回空字典
 * **`save_json_data(data, file_path)`** - 保存数据为JSON格式，自动创建目录结构
 
-#### APIManager 类
+#### APIManager 类 【2025年7月22日更新】
 
-* **`__init__()`** - 初始化API管理器，从环境变量读取DeepSeek API配置
-* **`get_headers()`** - 构建API请求头，验证API密钥是否已设置
-* **`call_llm(prompt, session, model, endpoint, max_tokens)`** - 调用在线LLM API，支持DeepSeek-Reasoner的reasoning_content字段
+* **`__init__()`** - 初始化API管理器，支持DeepSeek和SiliconFlow双API配置
+* **`get_headers(endpoint)`** - 智能构建API请求头，根据endpoint自动选择对应的API密钥
+* **`call_llm(prompt, session, model, endpoint, max_tokens)`** - 兼容多API的LLM调用接口
+  * 支持 **DeepSeek API**（默认）：`deepseek-chat`、`deepseek-reasoner` 模型
+  * 支持 **SiliconFlow API**：`moonshotai/Kimi-K2-Instruct` 等模型
+  * 自动检测API类型并适配不同的请求格式和错误处理
 
 #### 全局实例管理函数
 
@@ -136,8 +113,8 @@
 
 ```text
 MCPAgentRE\
-├─knowledge_documents\        # 知识文档（Git 提交时会被忽略）
-│  └─DeepSeek API 环境变量配置指南.md
+├─config\                     # 配置文件目录
+├─knowledge_documents\        # 知识文档（Git 提交时默认忽略目录下的文件，若要提交请手动在 .gitignore 中取消忽略）
 ├─documents_data\             # 文档数据目录（暂时，最终将替换至 local_data）
 │  ├─docx_data\                   # 存储 .docx 文档的目录
 │  ├─excel_data\                  # 存储 Excel 表格的目录
@@ -236,7 +213,11 @@ MCPAgentRE\
   * WORKSPACE_ID：TAPD项目ID，可通过TAPD平台获取
   * 提交Git时会根据`.gitignore`忽略`api.txt`文件，确保敏感信息不被泄露
 
-2. **DeepSeek API配置（可选）**
+2. **LLM API配置（可选）**
+
+系统现已支持两种LLM API提供商，您可以根据需要选择配置：
+
+#### DeepSeek API配置
 
 如果您需要使用智能摘要功能（`generate_tapd_overview`）或 description 优化功能（`preprocess_tapd_description`），需要配置DeepSeek API密钥：
 
@@ -246,16 +227,33 @@ MCPAgentRE\
 
   ```powershell
   # 临时设置（仅当前会话有效）
-  $env:DS_KEY = "your-api-key-here"
+  $env:DS_KEY = "your-deepseek-api-key-here"
   
   # 永久设置（推荐）
-  [Environment]::SetEnvironmentVariable("DS_KEY", "your-api-key-here", "User")
+  [Environment]::SetEnvironmentVariable("DS_KEY", "your-deepseek-api-key-here", "User")
+  ```
+
+#### SiliconFlow API配置 【🆕 2025年7月22日新增】
+
+SiliconFlow提供多种优质模型，包括Kimi、通义千问等：
+
+* **获取API密钥**：访问 [SiliconFlow 开放平台](https://siliconflow.cn/) 注册并获取API密钥
+
+* **设置环境变量**（Windows PowerShell）：
+
+  ```powershell
+  # 临时设置（仅当前会话有效）
+  $env:SF_KEY = "your-siliconflow-api-key-here"
+  
+  # 永久设置（推荐）
+  [Environment]::SetEnvironmentVariable("SF_KEY", "your-siliconflow-api-key-here", "User")
   ```
 
 * **验证配置**：
 
   ```powershell
   echo $env:DS_KEY
+  echo $env:SF_KEY
   ```
 
 * **注意事项**：
@@ -296,6 +294,7 @@ MCPAgentRE\
   ```
 
   输出结果如下：
+
   ```text
   成功加载配置: 用户=4ikoesFM, 工作区=37857678
   ✅ MCP服务器启动成功！
@@ -364,7 +363,36 @@ MCPAgentRE\
 * 该脚本会提取指定.docx文档中的文本、图片和表格信息，并生成摘要
 * 预期输出：生成的摘要JSON文件和提取的图片、表格文件
 
+7. **测试用例评估器**：
+
+  ```bash
+  # 运行自定义规则演示
+  uv run test\demo_custom_rules.py
+
+  # 运行需求单知识库初始化
+  uv run test\init_requirement_kb.py
+
+  # 运行测试用例评估器
+  uv run mcp_tools\test_case_evaluator.py
+  ```
+
+* 测试用例评估器会根据配置的规则评估测试用例质量，并生成评估报告
+* 首次运行时会自动生成默认规则配置文件 `config/test_case_rules.json` 与 `config/require_list_config.json`
+* 详细说明请参阅 `knowledge_documents\AI测试用例评估器操作手册.md`
+
+8. **API兼容性测试** 【🆕 2025年7月22日新增】：
+
+  ```bash
+  uv run test\test_api_compatibility.py
+  ```
+
+* 该脚本会测试DeepSeek和SiliconFlow两种API的连接性和响应
+* 预期输出：显示各API的调用结果和响应内容
+* 用于验证多API配置是否正确
+
 #### 正常模式
+
+##### MCP 服务器启动
 
 1. 确保`tapd_mcp_server.py`的 main 函数中没有任何 print 语句（或已注释掉），以避免在启动时输出调试信息。
 
@@ -373,6 +401,36 @@ MCPAgentRE\
   ```bash
   uv run tapd_mcp_server.py
   ```
+
+##### WorkFlow 脚本运行
+
+1. 评分规则配置
+
+```bash
+# 查看规则配置
+uv run mcp_tools/test_case_rules_customer.py
+
+# 修改规则配置
+uv run mcp_tools/test_case_rules_customer.py --config
+
+# 重置为默认配置
+uv run mcp_tools/test_case_rules_customer.py --reset
+
+# 查看帮助信息
+uv run mcp_tools/test_case_rules_customer.py --help
+```
+
+2. 运行需求单知识库
+
+```bash
+uv run mcp_tools/test_case_require_list_knowledge_base.py
+```
+
+3.  运行 AI 评估器
+
+```bash
+uv run mcp_tools/test_case_evaluator.py
+```
 
 ### 六、常见问题排查
 
@@ -509,7 +567,10 @@ MCPAgentRE\
 
 # 相关文档或网址
 
+* [MCP_Agent:RE 系统概览 Wiki](https://github.com/OneCuriousLearner/MCPAgentRE/wiki/MCP_Agent%3ARE-Overview)
 * [TAPD帮助文档](https://www.tapd.cn/help/show#1120003271001000137)
 * [TAPD开放平台文档](https://open.tapd.cn/document/api-doc/API%E6%96%87%E6%A1%A3/%E4%BD%BF%E7%94%A8%E5%BF%85%E8%AF%BB.html)
 * [MCP中文站](https://mcpcn.com/docs/introduction/)
 * [Model Context Protocol](https://modelcontextprotocol.io/introduction)
+* [DeepSeek API Docs](https://api-docs.deepseek.com/zh-cn/)
+* [创建对话请求 - SiliconFlow](https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions)

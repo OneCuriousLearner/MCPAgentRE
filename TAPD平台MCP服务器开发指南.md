@@ -14,11 +14,13 @@
 * 若需要添加或更新依赖，可以使用 `uv add` 或 `uv sync` 命令。
 * 所有 Python 程序在执行时都应当使用 `uv run <file>` 命令来运行程序，以确保使用正确的虚拟环境和依赖。运行程序前终端应当位于项目根目录，之后使用例如 `uv run mcp_tools\example_tool.py` 的命令格式。
 * 除了专门从 API 获取数据的脚本外，所有的程序都应当优先使用本地数据文件进行分析。若需要最新的 API 数据，请调用 `tapd_data_fetcher.py` 脚本来获取最新数据。
+* 工具在精不在多。如果有两套相似的工具，最好合并为一套或者只保留完整版；`tapd_data_fetcher.py` 中只注册最核心最重要的工具。
 
 ### 目录标准
 
 ```text
 MCPAgentRE\
+├─config\                   # 配置文件目录
 ├─knowledge_documents\      # 知识文档
 ├─mcp_tools\                # MCP 工具目录
 ├─local_data\               # 本地数据目录，用于存储从 TAPD 获取的数据、数据库等
@@ -36,6 +38,7 @@ MCPAgentRE\
 
 * 若要添加 MCP 工具，请存储于 `mcp_tools` 文件夹中，并在 `tapd_mcp_server.py` 中注册。注册方法请见 `README.md` 文件的“扩展MCP服务器功能”部分，之后你可以自行测试此 MCP 工具。
 * 所有来自 TAPD 平台的数据都应存储在 `local_data` 文件夹中，包括后续创建的数据库文件等。向量数据库文件则存储于 `local_data\vector_data` 文件夹中。
+* 所有配置文件都应当创建在 `config` 文件夹中。所有处理配置文件的程序都应当检查配置文件是否存在，若不存在则应创建空配置文件。
 * 所有测试类的文件都应存储在 `test` 文件夹中，测试文件名应以 `test_` 开头。
 * 所有新文档都应存储在 `knowledge_documents` 文件夹中，若为项目添加了新功能，请在 `knowledge_documents` 文件夹中创建或更新对应的使用手册文档，之后使用简洁的语言更新在 `README.md` 文档中。
 * 所有模型文件都应存储在 `models` 文件夹中，若需要为项目添加新模型，请指定下载在 `models` 文件夹中。

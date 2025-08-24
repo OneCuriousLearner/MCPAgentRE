@@ -12,7 +12,7 @@
 3. 重置为默认：运行 python test_case_rules_customer.py --reset
 4. 查看配置项说明：运行 python test_case_rules_customer.py --help
 
-配置文件存储位置：local_data/test_case_rules.json
+配置文件存储位置：config/test_case_rules.json
 """
 
 import json
@@ -36,7 +36,11 @@ class TestCaseRulesCustomer:
     def __init__(self):
         self.config = get_config()
         self.file_manager = get_file_manager()
-        self.config_file = self.config.local_data_path / "test_case_rules.json"
+        # 修改配置文件路径至根目录的config文件夹
+        config_dir = Path(self.config.project_root) / "config"
+        # 确保config目录存在
+        config_dir.mkdir(exist_ok=True)
+        self.config_file = config_dir / "test_case_rules.json"
         
         # 默认配置（来自原始提示词）
         self.default_config = {
@@ -300,4 +304,9 @@ def get_test_case_rules() -> Dict[str, Any]:
 
 
 if __name__ == "__main__":
+    print(" _____         _                        _____     _         ")
+    print("|     |_ _ ___| |_ ___ _____ ___ ___   | __  |_ _| |___ ___ ")
+    print("|   --| | |_ -|  _| . |     | -_|  _|  |    -| | | | -_|_ -|")
+    print("|_____|___|___|_| |___|_|_|_|___|_|    |__|__|___|_|___|___|")
+    print("                                                            ")
     main()

@@ -1,8 +1,46 @@
 """
-AI评估用例 - 打分与建议功能
+AI 测试用例评估器
 
-从Excel文件读取测试用例数据，通过AI进行评估打分并给出改进建议
-支持批次处理以控制token使用量
+本脚本提供了一个完整的解决方案，用于从 Excel 文件中读取测试用例，
+利用大型语言模型（LLM）进行自动化评估，并生成详细的改进建议。
+它集成了动态token管理、自定义评估规则和需求单知识库，以实现高效、准确的评估流程。
+
+核心功能：
+1.  **数据处理**：从 Excel 文件读取测试用例，并将其转换为结构化的 JSON 格式。
+2.  **Token管理**：内置精确的 Token 计数器（优先使用 `transformers` 库），并根据动态计算的
+    提示词长度自动将大量测试用例分割成适合模型上下文窗口的批次。
+3.  **动态提示词**：基于 `test_case_rules_customer.py` 中的自定义规则（如标题长度、步骤数）
+    构建评估提示词，确保评估标准的一致性和灵活性。
+4.  **知识库集成**：关联 `test_case_require_list_knowledge_base.py` 中的需求单知识库，
+    在评估时为 LLM 提供相关的需求背景信息，提高评估的准确性。
+5.  **异步评估**：使用 `aiohttp` 进行异步 API 调用，并行处理多个评估请求，提高处理效率。
+6.  **结果解析**：能够解析 LLM 返回的 Markdown 表格格式的评估结果，并将其转换为结构化的
+    JSON 数据，便于后续分析和存储。
+
+类与模块说明：
+- `TokenCounter`: 负责计算文本的 token 数量。优先使用本地的 `transformers` tokenizer
+  进行精确计算，如果失败则回退到改进的预估模式。
+- `TestCaseProcessor`: 处理测试用例数据。主要功能是将 Excel 文件转换为 JSON 格式，
+  并进行必要的字段映射和数据清理。
+- `TestCaseEvaluator`: 核心评估器类。
+    - `__init__`: 初始化评估器，加载规则配置和需求单知识库，并根据模型上下文限制计算
+      token 分配策略。
+    - `_build_dynamic_prompt_template`: 根据规则动态构建发送给 LLM 的提示词模板。
+    - `estimate_batch_tokens`: 估算一个批次的测试用例在组合成单个请求后所需的 token 总量。
+    - `split_test_cases_by_tokens`: 根据 token 阈值将所有用例分割成多个批次。
+    - `evaluate_batch`: 对单个批次的测试用例执行 AI 评估，发送异步请求并获取结果。
+    - `parse_evaluation_result`: 解析 AI 返回的 Markdown 格式的评估结果。
+    - `evaluate_test_cases`: 编排整个评估流程，从批次分割到结果汇总。
+
+处理流程：
+1.  `main_process` 函数启动处理流程。
+2.  `TestCaseProcessor` 读取 Excel 文件并转换为 JSON。
+3.  `TestCaseEvaluator` 加载所有测试用例。
+4.  `split_test_cases_by_tokens` 方法根据 `token_threshold` 将用例分割成多个批次。
+5.  对于每个批次，`evaluate_batch` 方法构建一个包含该批次所有用例的提示词，并异步调用
+    LLM API。
+6.  `parse_evaluation_result` 方法解析返回的 Markdown 表格，提取每个用例的评分和建议。
+7.  所有批次处理完成后，结果被汇总并保存到 `Proceed_TestCase_...json` 文件中。
 """
 
 import os
@@ -28,6 +66,7 @@ if str(mcp_tools_path) not in sys.path:
 # 导入公共工具
 from common_utils import get_config, get_api_manager, get_file_manager
 from test_case_rules_customer import get_test_case_rules
+from test_case_require_list_knowledge_base import RequirementKnowledgeBase
 
 
 class TokenCounter:
@@ -181,28 +220,35 @@ class TestCaseEvaluator:
         self.file_manager = get_file_manager()
         self.token_counter = TokenCounter()
         
+        # 初始化需求单知识库
+        self.requirement_kb = RequirementKnowledgeBase()
+        
         # 加载自定义规则配置
         self.rules_config = get_test_case_rules()
         print(f"已加载测试用例评估规则配置: 标题长度≤{self.rules_config['title_max_length']}字符, "
               f"步骤数≤{self.rules_config['max_steps']}步")
+        print(f"需求单知识库: 已加载 {len(self.requirement_kb.requirements)} 个需求单")
         
         # 上下文管理：总context = 请求tokens + 响应tokens + 提示词模板 + 缓冲
-        # 为了安全，设置请求tokens为总上下文的30%，响应tokens为60%，留20%缓冲
+        # 为了安全，设置请求tokens为总上下文的25%，响应tokens为50%，留25%缓冲
         self.max_context_tokens = max_context_tokens
         
         # 构建动态评估提示词模板
         self.evaluation_prompt_template = self._build_dynamic_prompt_template()
         
-        # 计算提示词模板的基础token数量（不包括动态内容）
-        template_base = self.evaluation_prompt_template.replace('{test_case_id}', '').replace('{test_case_title}', '').replace('{prerequisites}', '').replace('{step_description}', '').replace('{expected_result}', '').replace('{test_cases_json}', '')
+        # 计算提示词模板的基础token数量（包括已替换的规则参数，但不包括动态内容）
+        # 先替换掉规则参数（这些在实际使用时已经被替换），但保留动态占位符
+        template_with_rules = self.evaluation_prompt_template
+        # 动态占位符保持不变，用于后续替换
+        template_base = template_with_rules.replace('{test_case_id}', '').replace('{test_case_title}', '').replace('{prerequisites}', '').replace('{step_description}', '').replace('{expected_result}', '').replace('{test_cases_json}', '').replace('{requirement_info}', '')
         self.template_base_tokens = self.token_counter.count_tokens(template_base)
         
         # 重新计算token配置，将模板tokens纳入考虑
         available_tokens = max_context_tokens - self.template_base_tokens  # 减去模板占用的tokens
-        self.max_request_tokens = int(available_tokens * 0.3)  # 30%用于请求（用例数据部分）
-        self.max_response_tokens = int(available_tokens * 0.6)  # 60%用于响应
-        self.token_threshold = int(self.max_request_tokens * 0.8)  # 80%阈值，确保安全
-        
+        self.max_request_tokens = int(available_tokens * 0.25)  # 25%用于请求（用例数据部分）
+        self.max_response_tokens = int(available_tokens * 0.50)  # 50%用于响应
+        self.token_threshold = int(self.max_request_tokens * 0.75)  # 75%阈值，确保安全
+
         print(f"Token配置: 总上下文={max_context_tokens}, 模板基础tokens={self.template_base_tokens}, 可用tokens={available_tokens}")
         print(f"请求限制={self.max_request_tokens}, 响应限制={self.max_response_tokens}, 请求阈值={self.token_threshold}")
 
@@ -222,40 +268,58 @@ class TestCaseEvaluator:
         p1_range = f"{priority_ratios['P1']['min']}%~{priority_ratios['P1']['max']}%"
         p2_range = f"{priority_ratios['P2']['min']}%~{priority_ratios['P2']['max']}%"
         
-        template = f"""请根据给出的评分规则，为用例数据打分，并给出优化建议。**除此以外不需要任何分析或解释**。
+        template = f"""你需要为一批业务需求用例进行打分与评估。请为以下测试用例分别生成评估表格。每个用例应该有自己独立的表格。
 
-评分规则：
+## 重要提示：
 
-| 用例要素 | 是否必须 | 要求                                                                                                              |
-| ---- | ---- | --------------------------------------------------------------------------------------------------------------- |
-| 关联需求 | 是    | 1. 用例应当与父需求单关联                                                                                                     |
-| 用例标题 | 是    | 1. 标题长度不超过 {title_max_length} 字符，且描述测试功能点<br>2. 语言清晰，简洁易懂<br>3. 避免在用例评分中出现步骤                                                    |
-| 前置条件 | 否    | 1. 列出所有前提：账号类型，灰度等<br>2. 避免过度复杂：每个条件不超过 2 项描述，必要时分点列出                                                           |
-| 测试步骤 | 是    | 1. 步骤用编号链接：使用 1、2、3... 结构，每步描述一个动作<br>2. 步骤具体化：包含用户操作、输入值和上下文说明<br>3. 步骤数合理：不超过{max_steps}步，否则需分解为多个用例。<br>4. 避免步骤中带有检查点 |
-| 预期结果 | 是    | 1. 描述明确结果：明确的结果，确切的检查<br>2. 避免模棱两可的词（如功能正常，跟现网一致等）                                                              |
-| 优先级  | 是    | 1. 等级划分标准：采用 P0-P2<br>2. 明确标注：每个用例必须有优先级字段。<br>3. 优先级比例：P0占比应在{p0_range}之间，P1占比{p1_range}，P2占比{p2_range}                  |
+1. 请为每个用例生成一个完整的表格
+2. 每个表格都应该包含表头 "| 用例信息 | 分数 | 改进建议 |"
+3. 每个表格之间用空行分隔
+4. 严格按照提供的表格格式输出
+5. **除此以外不需要任何分析或解释**
+6. **必须从测试用例JSON数据中提取真实的字段内容，不要使用任何占位符**
 
-评分满分为 10 分，未提供必须提供的字段扣一分，每有一点要求未满足扣一分，最低 0 分。
-对低于 10 分的要素给出简要的建议。由于数据量较大，给出的每一条建议都应当简洁凝练。
+## 需求单信息：
 
-对于每一条用例，在你的回答中评分与建议的格式如下（你的回答只需提供此类表格，应严格按照此标准执行）：
+{{requirement_info}}
 
-| 用例信息                           | 分数  | 改进建议                |
-| ------------------------------ | --- | ------------------- |
-| **用例ID**<br>{{test_case_id}}     | -   | -                   |
-| **用例标题**<br>{{test_case_title}}  | 8   | 改为"验证错误密码登录的失败提示"   |
-| **前置条件**<br>{{prerequisites}}    | 8   | 补充系统版本要求            |
-| **测试步骤**<br>{{step_description}} | 6   | 步骤3增加"等待3秒"         |
-| **预期结果**<br>{{expected_result}}  | 7   | 明确提示位置（如：输入框下方红色文字） |
+## 评分规则：
 
-测试用例：
+| 用例要素 | 是否必须 | 要求                                                                                                                         |
+| ---- | ---- | -------------------------------------------------------------------------------------------------------------------------- |
+| 关联需求 | 是    | 1. 用例应当与需求单中的一条或多条有关                                                                                                       |
+| 用例标题 | 是    | 1. 标题长度不超过 {title_max_length} 字符，且描述测试功能点<br>2. 语言清晰，简洁易懂<br>3. 避免在用例评分中出现步骤                                               |
+| 前置条件 | 否    | 1. 列出所有前提：账号类型，灰度等<br>2. 避免过度复杂：每个条件不超过 2 项描述，必要时分点列出                                                                      |
+| 测试步骤 | 是    | 1. 步骤用编号链接：使用 1、2、3... 结构，每步描述一个动作<br>2. 步骤具体化：包含用户操作、输入值和上下文说明<br>3. 步骤数合理：不超过 {max_steps} 步，否则需分解为多个用例。<br>4. 避免步骤中带有检查点 |
+| 预期结果 | 是    | 1. 描述明确结果：明确的结果，确切的检查<br>2. 避免模棱两可的词（如功能正常，跟现网一致等）                                                                         |
+| 优先级  | 是    | 1. 等级划分标准：采用 P0-P2<br>2. 明确标注：每个用例必须有优先级字段。<br>3. 优先级比例：P0占比应在 {p0_range} 之间，P1占比 {p1_range}，P2占比 {p2_range}               |
+
+* 所有评分满分为 10 分，未提供必须提供的字段给0分，每有一点要求未满足则酌情扣1-2分，最低 0 分。
+* 未提供前置条件时，给 -1 分，便于后期横向对比。
+* 若用例与需求单中任何一条需求都无关，则给0分。若与某一条需求相关程度较高，则根据相关程度给出分数。若同时与多条需求相关，则根据相关程度综合评分。
+* 对低于 10 分的要素给出准确的建议。给出的每一条建议都应当具体明确，且不超过100字。
+
+## 请为每个测试用例生成如下格式的表格
+
+| 用例信息                                      | 分数  | 改进建议                |
+| ----------------------------------------- | --- | ------------------- |
+| **用例ID**<br>[从JSON中提取真实的test_case_id]     | -   | -                   |
+| **用例标题**<br>[从JSON中提取真实的test_case_title]  | 8   | 改为“验证错误密码登录的失败提示”   |
+| **前置条件**<br>[从JSON中提取真实的prerequisites]    | 8   | 补充系统版本要求            |
+| **测试步骤**<br>[从JSON中提取真实的step_description] | 6   | 步骤3增加“等待3秒”         |
+| **预期结果**<br>[从JSON中提取真实的expected_result]  | 7   | 明确提示位置（如：输入框下方红色文字） |
+
+表格中的“改进建议”内容仅供参考，提供建议时需要尽可能考虑到业务的方方面面，而不只是局限于表格模板。
+
+## 测试用例JSON数据
+
 {{test_cases_json}}
 """
         return template
 
     def estimate_batch_tokens(self, test_cases: List[Dict[str, Any]]) -> int:
         """
-        估算一批测试用例需要的token数量
+        估算一批测试用例在批量处理时需要的token数量
         
         参数:
             test_cases: 测试用例列表
@@ -263,34 +327,22 @@ class TestCaseEvaluator:
         返回:
             预计token数量
         """
-        total_tokens = 0
+        if not test_cases:
+            return 0
+            
+        # 获取需求单信息
+        requirement_info = self.requirement_kb.get_requirements_for_evaluation()
         
-        # 为每个测试用例估算token
-        for test_case in test_cases:
-            # 构建单个测试用例的提示词
-            test_cases_json = json.dumps([test_case], ensure_ascii=False, indent=2)
-            
-            # 提取测试用例字段
-            case_id = test_case.get('test_case_id', 'N/A')
-            title = test_case.get('test_case_title', '未提供')
-            prerequisites = test_case.get('prerequisites', '未提供') 
-            steps = test_case.get('step_description', '未提供')
-            expected = test_case.get('expected_result', '未提供')
-            
-            prompt = self.evaluation_prompt_template.format(
-                test_case_id=case_id,
-                test_case_title=title,
-                prerequisites=prerequisites,
-                step_description=steps,
-                expected_result=expected,
-                test_cases_json=test_cases_json
-            )
-            
-            # 计算token数量
-            tokens = self.token_counter.count_tokens(prompt)
-            total_tokens += tokens
+        # 构建与evaluate_batch一致的批量提示词
+        test_cases_json = json.dumps(test_cases, ensure_ascii=False, indent=2)
         
-        return total_tokens
+        prompt = self.evaluation_prompt_template.format(
+            requirement_info=requirement_info,
+            test_cases_json=test_cases_json
+        )
+        
+        # 计算token数量
+        return self.token_counter.count_tokens(prompt)
     
     def split_test_cases_by_tokens(self, test_cases: List[Dict[str, Any]], 
                                  start_index: int = 0) -> Tuple[List[Dict[str, Any]], int]:
@@ -344,48 +396,14 @@ class TestCaseEvaluator:
         # 构建批量提示词 - 一次性处理多个测试用例
         test_cases_json = json.dumps(test_cases, ensure_ascii=False, indent=2)
         
-        # 构建所有测试用例的综合信息字符串
-        cases_info = ""
-        for i, test_case in enumerate(test_cases, 1):
-            case_id = test_case.get('test_case_id', 'N/A')
-            title = test_case.get('test_case_title', '未提供')
-            prerequisites = test_case.get('prerequisites', '未提供') 
-            steps = test_case.get('step_description', '未提供')
-            expected = test_case.get('expected_result', '未提供')
-            
-            cases_info += f"""
-用例 {i}:
-- 用例ID: {case_id}
-- 用例标题: {title}
-- 前置条件: {prerequisites}
-- 测试步骤: {steps}
-- 预期结果: {expected}
-"""
+        # 获取需求单信息
+        requirement_info = self.requirement_kb.get_requirements_for_evaluation()
         
-        # 构建批量提示词
-        prompt = self.evaluation_prompt_template.format(
-            test_case_id="[批量处理]",
-            test_case_title="[批量处理]",
-            prerequisites="[批量处理]",
-            step_description="[批量处理]",
-            expected_result="[批量处理]",
+        # 构建最终提示词（不再使用可能误导AI的占位符）
+        final_prompt = self.evaluation_prompt_template.format(
+            requirement_info=requirement_info,
             test_cases_json=test_cases_json
         )
-        
-        # 添加特殊说明，要求AI为每个用例生成单独的表格
-        batch_instruction = f"""
-请为以下 {len(test_cases)} 个测试用例分别生成评估表格。每个用例应该有自己独立的表格。
-
-{cases_info}
-
-重要提示：
-1. 请为每个用例生成一个完整的表格
-2. 每个表格都应该包含表头 "| 用例信息 | 分数 | 改进建议 |"
-3. 每个表格之间用空行分隔
-4. 严格按照提供的表格格式输出
-"""
-        
-        final_prompt = batch_instruction + "\n\n" + prompt
         
         # 计算请求token数量，动态设置响应token限制
         request_tokens = self.token_counter.count_tokens(final_prompt)
@@ -403,6 +421,8 @@ class TestCaseEvaluator:
         result = await self.api_manager.call_llm(
             prompt=final_prompt,
             session=session,
+            model="moonshotai/Kimi-K2-Instruct",
+            endpoint="https://api.siliconflow.cn/v1",
             max_tokens=dynamic_response_tokens
         )
         
@@ -431,13 +451,16 @@ class TestCaseEvaluator:
         for line in lines:
             line = line.strip()
             
-            # 检测表格开始
-            if '| 用例信息 |' in line or '| --- |' in line:
+            # 检测表格开始 - 更宽松的匹配
+            if ('| 用例信息 |' in line or '用例信息' in line) and ('分数' in line or '改进建议' in line):
                 # 如果已经在处理表格，先保存当前表格
                 if table_started and current_table_lines:
                     all_tables.append(current_table_lines[:])
                     current_table_lines = []
                 table_started = True
+                continue
+            elif table_started and '| --- |' in line:
+                # 跳过分隔行
                 continue
             
             # 表格内容行
@@ -477,13 +500,15 @@ class TestCaseEvaluator:
                     suggestion = parts[2]
                     
                     # 检查是否包含用例ID
-                    if '**用例ID**' in field_info:
-                        # 提取用例ID
+                    if '**用例ID**' in field_info or 'ID' in field_info:
+                        # 提取用例ID - 更robust的方式
                         if '<br>' in field_info:
                             id_part = field_info.split('<br>')[-1].strip()
                         else:
-                            # 处理没有<br>的情况，直接从field_info中提取
-                            id_part = field_info.replace('**用例ID**', '').strip()
+                            # 尝试从整行中提取数字ID
+                            import re
+                            id_match = re.search(r'\d{8,}', field_info)  # 匹配8位以上的数字ID
+                            id_part = id_match.group() if id_match else field_info.replace('**用例ID**', '').strip()
                         
                         case_id = id_part
                         print(f"  正在解析用例ID: {case_id}")
@@ -508,9 +533,22 @@ class TestCaseEvaluator:
                             # 将<br>转换为实际换行符，便于阅读
                             field_content = field_content.replace('<br>', '\n')
                         else:
-                            # 处理没有<br>的情况
-                            field_name = field_info.replace('**', '').strip()
-                            field_content = ''
+                            # 处理没有<br>的情况，尝试从 ** 标记后提取内容
+                            if '**' in field_info:
+                                parts = field_info.split('**')
+                                if len(parts) >= 3:  # **字段名**内容
+                                    field_name = parts[1].strip()
+                                    field_content = '**'.join(parts[2:]).strip()
+                                else:
+                                    field_name = field_info.replace('**', '').strip()
+                                    field_content = ''
+                            else:
+                                field_name = field_info.strip()
+                                field_content = ''
+                        
+                        # 去除多余的星号和清理内容
+                        field_name = field_name.replace('*', '').strip()
+                        field_content = field_content.replace('*', '').strip()
                         
                         print(f"    解析字段: {field_name} (分数: {score.strip() if score.strip() != '-' else '无'})")
                         
@@ -580,9 +618,9 @@ class TestCaseEvaluator:
                     # 评估当前批次
                     ai_result = await self.evaluate_batch(batch_cases, session)
                     print(f"AI返回结果长度: {len(ai_result)}")
-                    print(f"AI返回结果前1000字符预览: ========================================")
-                    print(f"\n{ai_result[:1000]}\n......")
-                    print("============================================================")
+                    print(f"AI返回结果字符预览: ================================================================================")
+                    print(f"\n{ai_result}\n")
+                    print("====================================================================================================")
                     
                     # 解析结果
                     batch_evaluations = self.parse_evaluation_result(ai_result)
@@ -627,17 +665,27 @@ class TestCaseEvaluator:
         return all_evaluations
 
 
-async def main_process(test_batch_count: int = 3):
+async def main_process(test_batch_count: Optional[int] = None):
     """
     主处理流程
     
     参数:
-        test_batch_count: 测试数据批次，3表示只处理第一批用于测试
+        test_batch_count: 测试数据批次限制，None表示处理所有数据
     """
+    from datetime import datetime
+    from collections import Counter
+    start_time = datetime.now()
+    start_time_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
+    print(f"\n⏱️ 开始处理时间: {start_time_str}")
+    
     config = get_config()
     processor = TestCaseProcessor()
     # 12K总上下文：3.6K请求 + 7.2K响应 + 2.4K缓冲
     evaluator = TestCaseEvaluator(max_context_tokens=12000)
+    
+    # 获取规则配置中的优先级比例要求
+    rules_config = get_test_case_rules()
+    priority_ratios = rules_config['priority_ratios']
     
     # 文件路径
     excel_file = config.local_data_path / "TestCase_20250717141033-32202633.xlsx"
@@ -660,19 +708,78 @@ async def main_process(test_batch_count: int = 3):
         
         print(f"加载了 {len(test_cases)} 条测试用例数据")
         
+        # 分析测试用例的优先级分布
+        level_counter = Counter()
+        for test_case in test_cases:
+            level = test_case.get('level', '').strip().upper()
+            if level:
+                # 标准化优先级表示，例如P0、P1、P2
+                if level.startswith('P') and len(level) > 1 and level[1].isdigit():
+                    level_counter[level] += 1
+                else:
+                    level_counter['其他'] += 1
+            else:
+                level_counter['未设置'] += 1
+        
+        # 计算各优先级占比
+        total_cases = len(test_cases)
+        level_percentages = {}
+        level_compliance = {}
+        
+        print("\n📊 测试用例优先级分布分析：")
+        for level, count in level_counter.items():
+            percentage = (count / total_cases) * 100
+            level_percentages[level] = percentage
+            
+            # 检查是否符合规则配置
+            is_compliant = False
+            reason = "未找到对应规则"
+            
+            if level in ['P0', 'P1', 'P2']:
+                level_key = level  # 使用原始的P0、P1、P2作为键
+                if level_key in priority_ratios:
+                    min_percent = priority_ratios[level_key]['min']
+                    max_percent = priority_ratios[level_key]['max']
+                    is_compliant = min_percent <= percentage <= max_percent
+                    if is_compliant:
+                        reason = f"符合要求：{min_percent}% ~ {max_percent}%"
+                    else:
+                        if percentage < min_percent:
+                            reason = f"低于最小要求：{percentage:.1f}% < {min_percent}%"
+                        else:
+                            reason = f"超过最大要求：{percentage:.1f}% > {max_percent}%"
+            
+            level_compliance[level] = {
+                "count": count,
+                "percentage": percentage,
+                "is_compliant": is_compliant,
+                "reason": reason
+            }
+            
+            compliance_icon = "✅" if is_compliant else "❌"
+            print(f"{compliance_icon} {level}: {count} 条 ({percentage:.1f}%) - {reason}")
+        
         # 步骤3: AI评估
-        print(f"\n开始AI评估，测试批次限制: {test_batch_count}")
+        batch_limit_text = f"，测试批次限制: {test_batch_count}" if test_batch_count else "，将处理所有数据"
+        print(f"\n开始AI评估{batch_limit_text}")
         print(f"总计需要评估 {len(test_cases)} 个测试用例")
         evaluations = await evaluator.evaluate_test_cases(test_cases, test_batch_count)
         
         # 步骤4: 保存评估结果
         if evaluations:
             file_manager = get_file_manager()
-            # 包装为字典格式以符合save_json_data的接口
+            # 包装为字典格式以符合save_json_data的接口，并添加优先级分析结果
             result_data = {
                 "evaluation_results": evaluations,
                 "total_count": len(evaluations),
-                "generated_at": str(json_file).split('_')[-1].replace('.json', '')
+                "generated_at": str(json_file).split('_')[-1].replace('.json', ''),
+                "process_start_time": start_time_str,
+                "process_end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "priority_analysis": {
+                    "distribution": level_percentages,
+                    "compliance": level_compliance,
+                    "rules": priority_ratios
+                }
             }
             file_manager.save_json_data(result_data, str(result_file))
             print(f"\n评估完成！结果已保存到: {result_file}")
@@ -683,8 +790,32 @@ async def main_process(test_batch_count: int = 3):
     except Exception as e:
         print(f"处理失败: {str(e)}")
         raise
+    
+    # 计算处理时间
+    end_time = datetime.now()
+    end_time_str = end_time.strftime("%Y-%m-%d %H:%M:%S")
+    total_seconds = (end_time - start_time).total_seconds()
+    
+    print(f"\n⏱️ 结束处理时间: {end_time_str}")
+    print(f"⏱️ 总处理时间: {total_seconds:.2f} 秒")
+    
+    # 计算平均每条数据的处理时间
+    if evaluations and len(evaluations) > 0:
+        avg_time_per_case = total_seconds / len(evaluations)
+        print(f"⏱️ 平均每条数据处理时间: {avg_time_per_case:.2f} 秒/条")
+    else:
+        print("⏱️ 无法计算平均处理时间：没有成功处理的数据")
 
 
 if __name__ == "__main__":
-    # 完整处理模式：处理所有数据（None表示无限制）
-    asyncio.run(main_process(test_batch_count=None))
+    print(r" ______    __   __  ______    __        __  __    ______    ______   ______    ______    ")
+    print(r"/\  ___\  /\ \ / / /\  __ \  /\ \      /\ \/\ \  /\  __ \  /\__  _\ /\  __ \  /\  == \   ")
+    print(r"\ \  __\  \ \ \'/  \ \  __ \ \ \ \____ \ \ \_\ \ \ \  __ \ \/_/\ \/ \ \ \/\ \ \ \  __<   ")
+    print(r" \ \_____\ \ \__|   \ \_\ \_\ \ \_____\ \ \_____\ \ \_\ \_\   \ \_\  \ \_____\ \ \_\ \_\ ")
+    print(r"  \/_____/  \/_/     \/_/\/_/  \/_____/  \/_____/  \/_/\/_/    \/_/   \/_____/  \/_/ /_/ ")
+
+    # 测试模式：处理3批数据
+    # asyncio.run(main_process(test_batch_count=3))
+
+    # 正式模式：处理所有数据
+    asyncio.run(main_process())  # 不传入test_batch_count参数，将处理所有数据
