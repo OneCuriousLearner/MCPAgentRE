@@ -544,11 +544,189 @@ class FileManager:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-# 全局实例管理
-_global_config: Optional[MCPToolsConfig] = None
-_global_model_manager: Optional[ModelManager] = None
-_global_file_manager: Optional[FileManager] = None
-_global_api_manager: Optional[APIManager] = None
+# 新增：正则与UUID工具
+import re
+import uuid
+
+# ... existing code ...
+class FileManager:
+    """文件管理工具"""
+    
+    def __init__(self, config: MCPToolsConfig):
+        self.config = config
+    
+    def load_tapd_data(self, file_path: Optional[str] = None) -> Dict[str, Any]:
+        """
+        加载TAPD数据
+        
+        参数:
+            file_path: 数据文件路径，如果为None则使用默认路径
+            
+        返回:
+            Dict: TAPD数据字典
+        """
+        if file_path is None:
+            # 使用默认路径
+            file_path = self.config.get_data_file_path()
+        elif not os.path.isabs(file_path):
+            # 相对路径处理：直接使用 get_data_file_path 来统一处理
+            file_path = self.config.get_data_file_path(file_path)
+        
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"数据文件不存在: {file_path}")
+        
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    
+    def load_json_data(self, file_path: str) -> Dict[str, Any]:
+        """
+        加载JSON数据
+        
+        参数:
+            file_path: 数据文件路径
+            
+        返回:
+            Dict: JSON数据
+        """
+        if not os.path.exists(file_path):
+            return {}
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"加载JSON文件失败: {file_path}, 错误: {str(e)}")
+            return {}
+
+    def save_json_data(self, data: Dict[str, Any], file_path: str):
+        """
+        保存JSON数据
+        
+        参数:
+            data: 要保存的数据
+            file_path: 保存路径
+        """
+        # 确保目录存在
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+# 新增：可靠传输与ACK管理器
+class TransmissionManager:
+    """管理分块数据的标识、ACK校验、重试与报告输出"""
+
+    def __init__(self, file_manager: FileManager):
+        self.fm = file_manager
+        # 复用本地数据目录
+        self.retry_log_path = self.fm.config.get_data_file_path("retry_log.json")
+        self.report_path = self.fm.config.get_data_file_path("transmission_report.json")
+        self.retry_logs: List[Dict[str, Any]] = []
+        self.stats: Dict[str, Any] = {
+            "total_chunks": 0,
+            "ack_success_chunks": 0,
+            "ack_failed_chunks": 0,
+            "total_retries": 0,
+        }
+
+    def assign_ids(self, chunk: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """为分块内的每个条目分配稳定的data_id（若无则生成），并返回精简视图用于ACK。"""
+        minified: List[Dict[str, Any]] = []
+        for it in chunk:
+            data_id = it.get("_data_id")
+            if not data_id:
+                data_id = str(uuid.uuid4())
+                it["_data_id"] = data_id
+            title = it.get("name") or it.get("title") or ""
+            minified.append({"id": data_id, "title": str(title)[:80]})
+        return minified
+
+    def build_ack_prompt(self, items: List[Dict[str, Any]], mode: str = "ack_only") -> str:
+        ids = [x["id"] for x in items]
+        example = {"status": "ok", "received_count": len(ids), "data_ids": ids}
+        if mode == "ack_and_analyze":
+            example["analysis_text"] = "这里输出对这些条目的分析摘要（300-500字）"
+        items_text = "\n".join(f"- {it['id']}: {it['title']}" for it in items)
+        return (
+            "请先对以下数据执行接收确认（ACK）：列出你成功接收到的id，并统计数量。"\
+            "严格仅输出JSON，字段包括：status('ok'|'partial'|'error'), received_count(整数), data_ids(字符串数组)"
+            + (", analysis_text(字符串,300-500字) — 当模式为ack_and_analyze时必须包含" if mode == "ack_and_analyze" else "")
+            + f"\nJSON输出示例：\n{json.dumps(example, ensure_ascii=False)}\n"
+            + "以下是数据项（仅包含简要信息）：\n" + items_text + "\n"
+            + f"仅输出JSON。当前模式: {mode}"
+        )
+
+    def extract_first_json(self, text: str) -> Optional[Dict[str, Any]]:
+        """尽力从模型文本中提取首个有效JSON对象。"""
+        # 优先代码块
+        try:
+            if "```" in text:
+                parts = text.split("```")
+                for i in range(1, len(parts), 2):
+                    blk = parts[i]
+                    if blk.lstrip().startswith("json"):
+                        blk = blk.split("\n", 1)[1] if "\n" in blk else ""
+                    try:
+                        return json.loads(blk.strip())
+                    except Exception:
+                        continue
+            # 直接整体解析
+            return json.loads(text)
+        except Exception:
+            pass
+        # 正则回退
+        m = re.search(r"\{[\s\S]*\}", text)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                return None
+        return None
+
+    def verify_ack(self, sent_ids: List[str], ack: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        if not isinstance(ack, dict):
+            return {"ok": False, "missing": list(sent_ids), "extra": [], "received_count": 0}
+        recv_ids = [str(x) for x in ack.get("data_ids", [])]
+        sent_set, recv_set = set(sent_ids), set(recv_ids)
+        missing = list(sent_set - recv_set)
+        extra = list(recv_set - sent_set)
+        ok = (ack.get("status") in ("ok", "success")) and (len(missing) == 0)
+        rc = ack.get("received_count", len(recv_ids))
+        return {"ok": ok, "missing": missing, "extra": extra, "received_count": rc}
+
+    def log_retry(self, chunk_index: int, attempt: int, reason: str, details: Dict[str, Any]):
+        entry = {"chunk_index": chunk_index, "attempt": attempt, "reason": reason, "details": details}
+        self.retry_logs.append(entry)
+        try:
+            existing = self.fm.load_json_data(self.retry_log_path) or {}
+            arr = existing.get("retries", [])
+            arr.append(entry)
+            existing["retries"] = arr
+            self.fm.save_json_data(existing, self.retry_log_path)
+        except Exception as e:
+            print(f"[Transmission] 写入重试日志失败: {e}")
+
+    def update_stats(self, success: bool, retries: int = 0):
+        self.stats["total_chunks"] += 1
+        if success:
+            self.stats["ack_success_chunks"] += 1
+        else:
+            self.stats["ack_failed_chunks"] += 1
+        self.stats["total_retries"] += retries
+
+    def finalize_report(self) -> Dict[str, Any]:
+        report = {
+            "stats": self.stats,
+            "retry_log_path": self.retry_log_path,
+            "generated_at": __import__("datetime").datetime.now().isoformat(),
+        }
+        try:
+            self.fm.save_json_data(report, self.report_path)
+        except Exception as e:
+            print(f"[Transmission] 写入传输报告失败: {e}")
+        report["report_path"] = self.report_path
+        return report
 
 
 def get_config() -> MCPToolsConfig:
