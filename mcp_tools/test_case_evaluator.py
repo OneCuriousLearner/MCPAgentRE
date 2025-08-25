@@ -574,10 +574,141 @@ class TestCaseEvaluator:
         
         return evaluations
     
-    async def evaluate_test_cases(self, test_cases: List[Dict[str, Any]], 
-                                test_batch_count: Optional[int] = None) -> List[Dict[str, Any]]:
+    async def evaluate_single_batch_with_semaphore(self, batch_info: Dict[str, Any], 
+                                                  session: aiohttp.ClientSession,
+                                                  semaphore: asyncio.Semaphore) -> List[Dict[str, Any]]:
         """
-        评估测试用例
+        使用信号量控制的单批次评估（用于并行处理）
+        
+        参数:
+            batch_info: 包含批次信息的字典 {'cases': [...], 'batch_number': 1, 'start_index': 0}
+            session: HTTP会话
+            semaphore: 控制并发的信号量
+            
+        返回:
+            该批次的评估结果列表
+        """
+        async with semaphore:
+            batch_cases = batch_info['cases']
+            batch_number = batch_info['batch_number']
+            start_index = batch_info['start_index']
+            
+            print(f"开始并行处理第 {batch_number} 批次 ({len(batch_cases)} 个用例)...")
+            
+            try:
+                # 评估当前批次
+                ai_result = await self.evaluate_batch(batch_cases, session)
+                
+                # 解析结果
+                batch_evaluations = self.parse_evaluation_result(ai_result)
+                
+                # 显示处理结果
+                processed_ids = [eval_result.get('test_case_id', 'N/A') for eval_result in batch_evaluations]
+                print(f"第 {batch_number} 批次完成，评估了 {len(batch_evaluations)} 个用例")
+                print(f"   用例ID: {', '.join(processed_ids)}")
+                
+                return batch_evaluations
+                
+            except Exception as e:
+                print(f"第 {batch_number} 批次处理失败: {str(e)}")
+                # 返回空结果而不是抛出异常，保证其他批次能继续处理
+                return []
+    
+    async def evaluate_test_cases_parallel(self, test_cases: List[Dict[str, Any]], 
+                                         max_concurrent: int = 3,
+                                         test_batch_count: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        并行评估测试用例（性能优化版本）
+        
+        参数:
+            test_cases: 测试用例列表
+            max_concurrent: 最大并发批次数，默认3个
+            test_batch_count: 测试数据批次限制
+            
+        返回:
+            评估结果列表
+        """
+        print(f"启动并行处理模式，最大并发批次: {max_concurrent}")
+        
+        # 预先分割所有批次
+        all_batches = []
+        current_index = 0
+        batch_number = 1
+        
+        # 分割所有批次
+        while current_index < len(test_cases):
+            if test_batch_count and batch_number > test_batch_count:
+                break
+                
+            batch_cases, next_index = self.split_test_cases_by_tokens(test_cases, current_index)
+            if not batch_cases:
+                break
+                
+            batch_info = {
+                'cases': batch_cases,
+                'batch_number': batch_number,
+                'start_index': current_index
+            }
+            all_batches.append(batch_info)
+            
+            current_index = next_index
+            batch_number += 1
+        
+        print(f"总共分割为 {len(all_batches)} 个批次，开始并行处理...")
+        
+        # 创建信号量控制并发
+        semaphore = asyncio.Semaphore(max_concurrent)
+        all_evaluations = []
+        
+        # 并行处理所有批次
+        async with aiohttp.ClientSession() as session:
+            tasks = [
+                self.evaluate_single_batch_with_semaphore(batch_info, session, semaphore)
+                for batch_info in all_batches
+            ]
+            
+            # 等待所有批次完成
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 收集所有成功的结果
+            for i, result in enumerate(batch_results):
+                if isinstance(result, Exception):
+                    print(f"批次 {i+1} 发生异常: {result}")
+                else:
+                    all_evaluations.extend(result)
+        
+        print(f"并行处理完成！共评估 {len(all_evaluations)} 个用例")
+        return all_evaluations
+    
+    async def evaluate_test_cases(self, test_cases: List[Dict[str, Any]], 
+                                test_batch_count: Optional[int] = None,
+                                parallel_mode: bool = True,
+                                max_concurrent: int = 3) -> List[Dict[str, Any]]:
+        """
+        评估测试用例（支持串行/并行模式）
+        
+        参数:
+            test_cases: 测试用例列表
+            test_batch_count: 测试数据批次，1表示只处理第一批
+            parallel_mode: 是否使用并行模式，默认True
+            max_concurrent: 并行模式下的最大并发批次数，默认3个
+            
+        返回:
+            评估结果列表
+        """
+        if parallel_mode:
+            print(f"使用并行处理模式 (最大并发: {max_concurrent})")
+            return await self.evaluate_test_cases_parallel(
+                test_cases, max_concurrent, test_batch_count
+            )
+        else:
+            print("使用串行处理模式")
+            return await self.evaluate_test_cases_serial(test_cases, test_batch_count)
+    
+    async def evaluate_test_cases_serial(self, test_cases: List[Dict[str, Any]], 
+                                       test_batch_count: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        串行评估测试用例（原有实现）
         
         参数:
             test_cases: 测试用例列表

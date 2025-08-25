@@ -17,7 +17,7 @@ import uuid
 
 # SiliconFlow 默认模型（可通过环境变量 SF_MODEL 覆盖）
 # 若要查看可用的模型，请前往 https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions
-SF_DEFAULT_MODEL = os.getenv("SF_MODEL", "moonshotai/Kimi-K2-Instruct")
+SF_DEFAULT_MODEL = os.getenv("SF_MODEL", "deepseek-ai/DeepSeek-V3")
 
 
 class MCPToolsConfig:
