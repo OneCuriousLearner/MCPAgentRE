@@ -126,6 +126,10 @@ dependencies = [
 | API管理层 | APIManager            | 双API支持、智能切换、错误处理   |
 | 数据处理层  | TextProcessor         | 文本提取、关键信息解析         |
 | 文件管理层  | FileManager           | JSON数据加载保存、路径处理     |
+| 传输管理层  | TransmissionManager   | 传输统计、重试管理、状态报告      |
+| Token管理层 | TokenCounter         | 精确Token计数、预估模式、分批优化 |
+| 分批工具层  | BatchingUtils         | 按token阈值的贪心分批             |
+| 表格解析层  | MarkdownUtils         | 纯Markdown表格解析（headers/rows） |
 | 全局实例层  | get_config()等单例函数     | 避免重复初始化、统一资源管理      |
 
 ## 第三章：核心功能实现

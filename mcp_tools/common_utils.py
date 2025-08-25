@@ -8,16 +8,15 @@ import os
 import json
 import aiohttp
 from pathlib import Path
-from typing import Optional, Dict, Any, List
-from sentence_transformers import SentenceTransformer
+from typing import Optional, Dict, Any, List, Callable, Tuple
 import asyncio
-# 新增：正则与UUID工具
 import re
 import uuid
+import pandas as pd
 
 # SiliconFlow 默认模型（可通过环境变量 SF_MODEL 覆盖）
 # 若要查看可用的模型，请前往 https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions
-SF_DEFAULT_MODEL = os.getenv("SF_MODEL", "moonshotai/Kimi-K2-Instruct")
+SF_DEFAULT_MODEL = os.getenv("SF_MODEL", "deepseek-ai/DeepSeek-V3.1")
 
 
 class MCPToolsConfig:
@@ -345,7 +344,7 @@ class APIManager:
 class ModelManager:
     """模型管理器 - 统一的模型加载和缓存管理"""
     
-    _shared_model: Optional[SentenceTransformer] = None
+    _shared_model: Optional[Any] = None
     _model_name_cache: Optional[str] = None
     
     def __init__(self, config: MCPToolsConfig):
@@ -385,7 +384,7 @@ class ModelManager:
         print(f"找到本地模型: {latest_snapshot}")
         return str(latest_snapshot)
     
-    def get_model(self, model_name: str = "paraphrase-MiniLM-L6-v2") -> SentenceTransformer:
+    def get_model(self, model_name: str = "paraphrase-MiniLM-L6-v2") -> Any:
         """
         获取模型实例，使用缓存避免重复加载
         
@@ -405,6 +404,8 @@ class ModelManager:
             
             if local_model_path:
                 print(f"使用本地模型: {local_model_path}")
+                # 延迟导入，避免在模块导入阶段引入重依赖
+                from sentence_transformers import SentenceTransformer
                 ModelManager._shared_model = SentenceTransformer(local_model_path)
                 print("本地模型加载完成")
             else:
@@ -416,6 +417,7 @@ class ModelManager:
                 os.environ['TRANSFORMERS_CACHE'] = cache_dir
                 os.environ['HF_HOME'] = cache_dir
                 
+                from sentence_transformers import SentenceTransformer
                 ModelManager._shared_model = SentenceTransformer(
                     model_name, 
                     cache_folder=cache_dir
@@ -495,6 +497,45 @@ class FileManager:
     
     def __init__(self, config: MCPToolsConfig):
         self.config = config
+    
+    def read_excel_with_mapping(
+        self,
+        excel_file_path: str,
+        column_mapping: Dict[str, str],
+        na_to_empty: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        读取Excel并按列映射输出为list[dict]，自动处理NaN与去两端空白。
+
+        参数:
+            excel_file_path: Excel文件路径
+            column_mapping: {Excel列名: 输出键名}
+            na_to_empty: 是否将NaN/None转换为空字符串
+
+        返回:
+            List[Dict[str, Any]]: 行字典列表
+        """
+        try:
+            df = pd.read_excel(excel_file_path)
+        except Exception as e:
+            raise RuntimeError(f"读取Excel失败: {excel_file_path} — {e}")
+
+        results: List[Dict[str, Any]] = []
+        # 使用DataFrame的get以容错缺少列的情况
+        for _, row in df.iterrows():
+            item: Dict[str, Any] = {}
+            for xls_col, out_key in column_mapping.items():
+                val = row.get(xls_col, "")
+                if na_to_empty and (pd.isna(val) or val is None):
+                    val = ""
+                # 统一为字符串并去除两端空白
+                if isinstance(val, str):
+                    item[out_key] = val.strip()
+                else:
+                    # 对数字等非字符串，保持原值；若需要字符串，调用方可自行转换
+                    item[out_key] = val
+            results.append(item)
+        return results
     
     def load_tapd_data(self, file_path: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -670,12 +711,201 @@ class TransmissionManager:
         return report
 
 
+class TokenCounter:
+    """Token计数器 - 支持transformers tokenizer和改进的预估模式"""
+    
+    def __init__(self, config: Optional[MCPToolsConfig] = None):
+        self.config = config or get_config()
+        self.tokenizer = None
+        self._try_load_tokenizer()
+    
+    def _try_load_tokenizer(self):
+        """尝试加载DeepSeek tokenizer"""
+        try:
+            # 尝试使用transformers库加载tokenizer
+            import transformers
+            
+            tokenizer_path = self.config.models_path / "deepseek_v3_tokenizer" / "deepseek_v3_tokenizer"
+            
+            if tokenizer_path.exists():
+                self.tokenizer = transformers.AutoTokenizer.from_pretrained(
+                    str(tokenizer_path), 
+                    trust_remote_code=True
+                )
+                print("已加载DeepSeek tokenizer（transformers），将使用精确token计数")
+                return
+            else:
+                print(f"DeepSeek tokenizer路径不存在: {tokenizer_path}")
+                
+        except ImportError as e:
+            print(f"transformers库未安装: {e}")
+        except Exception as e:
+            print(f"加载DeepSeek tokenizer失败: {e}")
+        
+        print("将使用改进的预估模式进行token计数")
+        self.tokenizer = None
+    
+    def count_tokens(self, text: str) -> int:
+        """
+        计算文本的token数量
+        
+        参数:
+            text: 要计算的文本
+            
+        返回:
+            token数量
+        """
+        if self.tokenizer:
+            try:
+                tokens = self.tokenizer.encode(text)
+                return len(tokens)
+            except Exception as e:
+                print(f"使用tokenizer计数失败: {e}，转为预估模式")
+        
+        # 改进的预估模式：基于测试结果优化参数
+        # 测试结果显示：
+        # - 样本文本平均比率: 0.98 (预估vs实际)
+        # - 真实用例平均比率: 0.91 (预估vs实际)
+        # - 预估模式总体偏低约10%，需要调整系数
+        import re
+        
+        chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
+        english_chars = len(re.findall(r'[a-zA-Z]', text))
+        digits = len(re.findall(r'[0-9]', text))
+        punctuation = len(re.findall(r'[^\w\s]', text))
+        spaces = len(re.findall(r'\s', text))
+        other_chars = len(text) - chinese_chars - english_chars - digits - punctuation - spaces
+        
+        # 基于测试结果调整的系数
+        estimated_tokens = int(
+            chinese_chars * 0.7 +      # 中文字符（从0.6调整到0.7）
+            english_chars * 0.35 +     # 英文字符（从0.3调整到0.35）
+            digits * 0.3 +             # 数字
+            punctuation * 0.4 +        # 标点符号
+            spaces * 0.1 +             # 空格
+            other_chars * 0.4          # 其他字符
+        )
+        
+        # 添加10%的修正系数，因为测试显示预估偏低
+        estimated_tokens = int(estimated_tokens * 1.1)
+        
+        return estimated_tokens
+
+
+
+class BatchingUtils:    # 无状态、仅提供静态方法，不提供全局实例函数
+    """通用分批工具：按token预算对列表进行贪心切分。"""
+
+    @staticmethod
+    def split_by_token_budget(
+        items: List[Any],
+        estimate_tokens_fn: Callable[[List[Any]], int],
+        token_threshold: int,
+        start_index: int = 0
+    ) -> Tuple[List[Any], int, int]:
+        """
+        基于token预算，将items从start_index开始贪心装入一批，尽量不超过阈值；
+        若首个元素本身即超过阈值，也会收纳该元素以保证前进。
+
+        返回: (当前批次列表, 下一批起始索引, 当前批次估算token数)
+        """
+        if not items or start_index >= len(items):
+            return [], start_index, 0
+
+        batch: List[Any] = []
+        last_tokens = 0
+
+        for i in range(start_index, len(items)):
+            candidate = batch + [items[i]]
+            try:
+                cand_tokens = estimate_tokens_fn(candidate)
+            except Exception as e:
+                raise RuntimeError(f"估算tokens失败: {e}")
+
+            if cand_tokens > token_threshold and batch:
+                # 超阈值且已有内容，停止累加
+                break
+
+            batch.append(items[i])
+            last_tokens = cand_tokens
+
+        next_index = start_index + len(batch)
+        return batch, next_index, last_tokens
+
+
+class MarkdownUtils:    # 无状态、仅提供静态方法，不提供全局实例函数
+    """Markdown表格解析通用工具（纯解析，不做业务映射）。"""
+
+    @staticmethod
+    def parse_markdown_tables(md_text: str) -> List[Dict[str, Any]]:
+        """
+        解析Markdown中的所有表格，返回标准化结构：
+        [{"headers": [...], "rows": [[...],[...], ...]}]
+
+        - 自动跳过对齐分隔行（---, :---:, ---: 等）
+        - 支持以竖线开头或不以竖线开头的表格行
+        - 保留单元格原始文本（去除两端空白）
+        """
+        lines = md_text.splitlines()
+        tables: List[Dict[str, Any]] = []
+
+        i = 0
+        n = len(lines)
+
+        def split_row(line: str) -> List[str]:
+            parts = [p.strip() for p in line.split('|')]
+            # 移除首尾由于前导/尾随竖线产生的空单元
+            if parts and parts[0] == '':
+                parts = parts[1:]
+            if parts and parts[-1] == '':
+                parts = parts[:-1]
+            return parts
+
+        def is_sep_row(line: str) -> bool:
+            # 典型分隔行：| --- | :---: | ---: |
+            core = line.strip().strip('|').strip()
+            if not core:
+                return False
+            cells = [c.strip() for c in core.split('|')]
+            if not cells:
+                return False
+            return all(re.fullmatch(r":?-{3,}:?", c.replace(' ', '')) is not None for c in cells)
+
+        while i < n:
+            line = lines[i].rstrip()
+
+            # 找到表头候选行：包含至少一个'|'并且下一行是对齐分隔行
+            if '|' in line and (i + 1) < n and '|' in lines[i + 1] and is_sep_row(lines[i + 1]):
+                headers = split_row(line)
+                i += 2  # 跳过分隔行
+                rows: List[List[str]] = []
+                # 读取后续数据行
+                while i < n:
+                    data_line = lines[i].rstrip()
+                    if '|' in data_line:
+                        # 到下一个表或无效结构时停止
+                        if (i + 1) < n and '|' in lines[i + 1] and is_sep_row(lines[i + 1]):
+                            break
+                        rows.append(split_row(data_line))
+                        i += 1
+                    else:
+                        break
+
+                tables.append({"headers": headers, "rows": rows})
+                continue  # 已经前进到正确位置
+
+            i += 1
+
+        return tables
+
+
 # 全局实例管理
 _global_config: Optional[MCPToolsConfig] = None
 _global_model_manager: Optional[ModelManager] = None
 _global_file_manager: Optional[FileManager] = None
 _global_api_manager: Optional[APIManager] = None
 _global_transmission_manager: Optional[TransmissionManager] = None
+_global_token_counter: Optional[TokenCounter] = None
 
 def get_config() -> MCPToolsConfig:
     """获取全局配置实例"""
@@ -708,9 +938,18 @@ def get_api_manager() -> APIManager:
         _global_api_manager = APIManager()
     return _global_api_manager
 
+
 def get_transmission_manager() -> TransmissionManager:
     """获取全局传输管理器实例"""
     global _global_transmission_manager
     if _global_transmission_manager is None:
         _global_transmission_manager = TransmissionManager(get_file_manager())
     return _global_transmission_manager
+
+
+def get_token_counter() -> TokenCounter:
+    """获取全局Token计数器实例"""
+    global _global_token_counter
+    if _global_token_counter is None:
+        _global_token_counter = TokenCounter(get_config())
+    return _global_token_counter

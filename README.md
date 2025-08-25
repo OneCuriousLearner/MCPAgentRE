@@ -92,8 +92,29 @@
 * **`load_tapd_data(file_path)`** - 加载TAPD JSON数据文件，支持绝对路径和相对路径
 * **`load_json_data(file_path)`** - 加载JSON数据文件，支持错误处理，文件不存在时返回空字典
 * **`save_json_data(data, file_path)`** - 保存数据为JSON格式，自动创建目录结构
+* **`read_excel_with_mapping(excel_file_path, column_mapping, na_to_empty=True)`** - 通用Excel读取与列映射，返回list[dict]
 
-#### APIManager 类 【2025年7月22日更新】
+#### TransmissionManager 类
+
+* **`__init__(file_manager)`** - 初始化传输管理器，依赖FileManager实例
+* **`update_stats(success, retries)`** - 更新传输统计信息，记录成功/失败次数和重试次数
+* **`finalize_report()`** - 生成最终传输报告，保存统计数据到JSON文件
+
+#### TokenCounter 类
+
+* **`__init__(config)`** - 初始化Token计数器，依赖MCPToolsConfig实例，自动尝试加载DeepSeek tokenizer
+* **`count_tokens(text)`** - 计算文本的token数量，优先使用transformers库精确计算，失败时使用改进的预估模式
+* **`_try_load_tokenizer()`** - 尝试加载本地DeepSeek tokenizer，支持精确token计数
+
+#### BatchingUtils 工具类
+
+* **`split_by_token_budget(items, estimate_tokens_fn, token_threshold, start_index=0)`** - 基于token阈值的贪心分批，返回(本批列表, 下一起点, 估算tokens)
+
+#### MarkdownUtils 工具类
+
+* **`parse_markdown_tables(md_text)`** - 纯解析Markdown表格为通用结构[{headers, rows}]，不含业务映射
+
+#### APIManager 类
 
 * **`__init__()`** - 初始化API管理器，支持DeepSeek和SiliconFlow双API配置
 * **`get_headers(endpoint)`** - 智能构建API请求头，根据endpoint自动选择对应的API密钥
@@ -108,6 +129,8 @@
 * **`get_model_manager()`** - 获取全局ModelManager实例（单例模式）
 * **`get_file_manager()`** - 获取全局FileManager实例（单例模式）
 * **`get_api_manager()`** - 获取全局APIManager实例（单例模式）
+* **`get_transmission_manager()`** - 获取全局TransmissionManager实例（单例模式）
+* **`get_token_counter()`** - 获取全局TokenCounter实例（单例模式）
 
 ## 项目结构
 

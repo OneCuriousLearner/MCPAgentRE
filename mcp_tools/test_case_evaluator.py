@@ -7,8 +7,9 @@ AI 测试用例评估器
 
 核心功能：
 1.  **数据处理**：从 Excel 文件读取测试用例，并将其转换为结构化的 JSON 格式。
-2.  **Token管理**：内置精确的 Token 计数器（优先使用 `transformers` 库），并根据动态计算的
-    提示词长度自动将大量测试用例分割成适合模型上下文窗口的批次。
+2.  **Token管理**：使用统一的 TokenCounter（来自 common_utils），支持精确的 Token 计数器
+    （优先使用 `transformers` 库），并根据动态计算的提示词长度自动将大量测试用例分割成
+    适合模型上下文窗口的批次。
 3.  **动态提示词**：基于 `test_case_rules_customer.py` 中的自定义规则（如标题长度、步骤数）
     构建评估提示词，确保评估标准的一致性和灵活性。
 4.  **知识库集成**：关联 `test_case_require_list_knowledge_base.py` 中的需求单知识库，
@@ -18,8 +19,6 @@ AI 测试用例评估器
     JSON 数据，便于后续分析和存储。
 
 类与模块说明：
-- `TokenCounter`: 负责计算文本的 token 数量。优先使用本地的 `transformers` tokenizer
-  进行精确计算，如果失败则回退到改进的预估模式。
 - `TestCaseProcessor`: 处理测试用例数据。主要功能是将 Excel 文件转换为 JSON 格式，
   并进行必要的字段映射和数据清理。
 - `TestCaseEvaluator`: 核心评估器类。
@@ -41,6 +40,10 @@ AI 测试用例评估器
     LLM API。
 6.  `parse_evaluation_result` 方法解析返回的 Markdown 表格，提取每个用例的评分和建议。
 7.  所有批次处理完成后，结果被汇总并保存到 `Proceed_TestCase_...json` 文件中。
+
+注意：
+- TokenCounter 类已迁移至 common_utils.py 统一管理，本脚本通过 get_token_counter() 获取实例
+- 集成了统一的配置管理、文件管理和API管理接口
 """
 
 import os
@@ -64,89 +67,16 @@ if str(mcp_tools_path) not in sys.path:
     sys.path.insert(0, str(mcp_tools_path))
 
 # 导入公共工具
-from common_utils import get_config, get_api_manager, get_file_manager
+from common_utils import (
+    get_config,
+    get_api_manager,
+    get_file_manager,
+    get_token_counter,
+    BatchingUtils,
+    MarkdownUtils,
+)
 from test_case_rules_customer import get_test_case_rules
 from test_case_require_list_knowledge_base import RequirementKnowledgeBase
-
-
-class TokenCounter:
-    """Token计数器 - 支持transformers tokenizer和改进的预估模式"""
-    
-    def __init__(self):
-        self.config = get_config()
-        self.tokenizer = None
-        self._try_load_tokenizer()
-    
-    def _try_load_tokenizer(self):
-        """尝试加载DeepSeek tokenizer"""
-        try:
-            # 尝试使用transformers库加载tokenizer
-            import transformers
-            
-            tokenizer_path = self.config.models_path / "deepseek_v3_tokenizer" / "deepseek_v3_tokenizer"
-            
-            if tokenizer_path.exists():
-                self.tokenizer = transformers.AutoTokenizer.from_pretrained(
-                    str(tokenizer_path), 
-                    trust_remote_code=True
-                )
-                print("已加载DeepSeek tokenizer（transformers），将使用精确token计数")
-                return
-            else:
-                print(f"DeepSeek tokenizer路径不存在: {tokenizer_path}")
-                
-        except ImportError as e:
-            print(f"transformers库未安装: {e}")
-        except Exception as e:
-            print(f"加载DeepSeek tokenizer失败: {e}")
-        
-        print("将使用改进的预估模式进行token计数")
-        self.tokenizer = None
-    
-    def count_tokens(self, text: str) -> int:
-        """
-        计算文本的token数量
-        
-        参数:
-            text: 要计算的文本
-            
-        返回:
-            token数量
-        """
-        if self.tokenizer:
-            try:
-                tokens = self.tokenizer.encode(text)
-                return len(tokens)
-            except Exception as e:
-                print(f"使用tokenizer计数失败: {e}，转为预估模式")
-        
-        # 改进的预估模式：基于测试结果优化参数
-        # 测试结果显示：
-        # - 样本文本平均比率: 0.98 (预估vs实际)
-        # - 真实用例平均比率: 0.91 (预估vs实际)
-        # - 预估模式总体偏低约10%，需要调整系数
-        
-        chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
-        english_chars = len(re.findall(r'[a-zA-Z]', text))
-        digits = len(re.findall(r'[0-9]', text))
-        punctuation = len(re.findall(r'[^\w\s]', text))
-        spaces = len(re.findall(r'\s', text))
-        other_chars = len(text) - chinese_chars - english_chars - digits - punctuation - spaces
-        
-        # 基于测试结果调整的系数
-        estimated_tokens = int(
-            chinese_chars * 0.7 +      # 中文字符（从0.6调整到0.7）
-            english_chars * 0.35 +     # 英文字符（从0.3调整到0.35）
-            digits * 0.3 +             # 数字
-            punctuation * 0.4 +        # 标点符号
-            spaces * 0.1 +             # 空格
-            other_chars * 0.4          # 其他字符
-        )
-        
-        # 添加10%的修正系数，因为测试显示预估偏低
-        estimated_tokens = int(estimated_tokens * 1.1)
-        
-        return estimated_tokens
 
 
 class TestCaseProcessor:
@@ -168,10 +98,6 @@ class TestCaseProcessor:
             转换后的数据列表
         """
         try:
-            # 读取Excel文件
-            df = pd.read_excel(excel_file_path)
-            
-            # 定义列名映射
             column_mapping = {
                 '用例ID': 'test_case_id',
                 'UUID': 'UUID',
@@ -182,33 +108,15 @@ class TestCaseProcessor:
                 '前置条件': 'prerequisites',
                 '步骤描述类型': 'step_description_type',
                 '步骤描述': 'step_description',
-                '预期结果': 'expected_result'
+                '预期结果': 'expected_result',
             }
-            
-            # 转换数据
-            json_data = []
-            for _, row in df.iterrows():
-                test_case = {}
-                for excel_col, json_key in column_mapping.items():
-                    value = row.get(excel_col, "")
-                    # 处理NaN值
-                    if pd.isna(value):
-                        value = ""
-                    else:
-                        value = str(value).strip()
-                    test_case[json_key] = value
-                
-                json_data.append(test_case)
-            
-            # 保存JSON文件
+            json_data = self.file_manager.read_excel_with_mapping(excel_file_path, column_mapping)
             with open(json_file_path, 'w', encoding='utf-8') as f:
                 json.dump(json_data, f, ensure_ascii=False, indent=2)
             print(f"成功转换 {len(json_data)} 条测试用例数据到 {json_file_path}")
-            
             return json_data
-            
         except Exception as e:
-            raise RuntimeError(f"Excel转JSON失败: {str(e)}")
+            raise RuntimeError(f"Excel转JSON失败: {e}")
 
 
 class TestCaseEvaluator:
@@ -218,15 +126,19 @@ class TestCaseEvaluator:
         self.config = get_config()
         self.api_manager = get_api_manager()
         self.file_manager = get_file_manager()
-        self.token_counter = TokenCounter()
+        self.token_counter = get_token_counter()
         
         # 初始化需求单知识库
         self.requirement_kb = RequirementKnowledgeBase()
         
         # 加载自定义规则配置
         self.rules_config = get_test_case_rules()
-        print(f"已加载测试用例评估规则配置: 标题长度≤{self.rules_config['title_max_length']}字符, "
-              f"步骤数≤{self.rules_config['max_steps']}步")
+        print(f"已加载测试用例评估规则配置:")
+        print(f"  - 标题长度≤{self.rules_config['title_max_length']}字符")
+        print(f"  - 步骤数≤{self.rules_config['max_steps']}步")
+        print(f"  - 优先级占比配置:")
+        for priority, ratio in self.rules_config['priority_ratios'].items():
+            print(f"    * {priority}: {ratio['min']}-{ratio['max']}%")
         print(f"需求单知识库: 已加载 {len(self.requirement_kb.requirements)} 个需求单")
         
         # 上下文管理：总context = 请求tokens + 响应tokens + 提示词模板 + 缓冲
@@ -356,30 +268,29 @@ class TestCaseEvaluator:
         返回:
             (当前批次的测试用例, 下一批次的开始索引)
         """
-        current_batch = []
-        current_tokens = 0
+        batch, next_index, current_tokens = BatchingUtils.split_by_token_budget(
+            test_cases,
+            estimate_tokens_fn=self.estimate_batch_tokens,
+            token_threshold=self.token_threshold,
+            start_index=start_index,
+        )
         
-        for i in range(start_index, len(test_cases)):
-            # 尝试添加下一个测试用例
-            candidate_batch = current_batch + [test_cases[i]]
-            candidate_tokens = self.estimate_batch_tokens(candidate_batch)
-            
-            if candidate_tokens > self.token_threshold and current_batch:
-                # 超过阈值且当前批次不为空，停止添加
-                break
-            
-            # 添加到当前批次
-            current_batch.append(test_cases[i])
-            current_tokens = candidate_tokens
-            
-        next_index = start_index + len(current_batch)
-        
-        # 显示当前批次包含的测试用例ID
-        batch_ids = [case.get('test_case_id', 'N/A') for case in current_batch]
-        print(f"当前批次包含 {len(current_batch)} 个测试用例，预计使用 {current_tokens} tokens")
+        # 计算合计tokens（请求+响应上限），用于更准确的预算展示
+        request_tokens_est = current_tokens
+        safety_tokens = max(128, int(self.max_context_tokens * 0.05))
+        allowed_response_by_total = max(64, self.max_context_tokens - request_tokens_est - safety_tokens)
+        response_tokens_cap = max(64, min(self.max_response_tokens, allowed_response_by_total))
+        total_estimated_tokens = request_tokens_est + response_tokens_cap
+
+        # 显示当前批次包含的测试用例ID与token预算
+        batch_ids = [case.get('test_case_id', 'N/A') for case in batch]
+        print(
+            f"当前批次包含 {len(batch)} 个测试用例，预计tokens: 请求≈{request_tokens_est}, "
+            f"响应上限≈{response_tokens_cap}, 合计≈{total_estimated_tokens}（窗口={self.max_context_tokens}）"
+        )
         print(f"批次包含的用例ID: {', '.join(batch_ids)}")
         
-        return current_batch, next_index
+        return batch, next_index
     
     async def evaluate_batch(self, test_cases: List[Dict[str, Any]], 
                            session: aiohttp.ClientSession) -> str:
@@ -405,10 +316,13 @@ class TestCaseEvaluator:
             test_cases_json=test_cases_json
         )
         
-        # 计算请求token数量，动态设置响应token限制
+        # 计算请求token数量，基于总体上下文预算动态设置响应token限制
         request_tokens = self.token_counter.count_tokens(final_prompt)
-        # 响应token应该与请求token大致相等，但不超过最大响应限制
-        dynamic_response_tokens = min(request_tokens * 2, self.max_response_tokens)  # 批量处理需要更多响应空间
+        # 留出安全余量，确保请求tokens + 响应tokens + 安全余量 <= max_context_tokens
+        safety_tokens = max(128, int(self.max_context_tokens * 0.05))
+        allowed_response_by_total = max(64, self.max_context_tokens - request_tokens - safety_tokens)
+        # 最终响应上限同时受全局响应上限与“总预算剩余”约束
+        dynamic_response_tokens = max(64, min(self.max_response_tokens, allowed_response_by_total))
         
         print(f"批量处理 {len(test_cases)} 个用例: 请求tokens={request_tokens}, 响应tokens限制={dynamic_response_tokens}")
         
@@ -438,140 +352,84 @@ class TestCaseEvaluator:
         返回:
             解析后的评估结果列表
         """
-        evaluations = []
-        
-        # 清理响应，找到所有表格部分
-        lines = ai_response.split('\n')
-        all_tables = []
-        current_table_lines = []
-        table_started = False
-        
-        for line in lines:
-            line = line.strip()
-            
-            # 检测表格开始 - 更宽松的匹配
-            if ('| 用例信息 |' in line or '用例信息' in line) and ('分数' in line or '改进建议' in line):
-                # 如果已经在处理表格，先保存当前表格
-                if table_started and current_table_lines:
-                    all_tables.append(current_table_lines[:])
-                    current_table_lines = []
-                table_started = True
-                continue
-            elif table_started and '| --- |' in line:
-                # 跳过分隔行
-                continue
-            
-            # 表格内容行
-            elif table_started and line.startswith('|') and len(line.split('|')) >= 4:
-                current_table_lines.append(line)
-            
-            # 表格结束（空行或非表格行）
-            elif table_started and (not line or not line.startswith('|')):
-                if current_table_lines:
-                    all_tables.append(current_table_lines[:])
-                    current_table_lines = []
-                table_started = False
-        
-        # 处理最后一个表格
-        if table_started and current_table_lines:
-            all_tables.append(current_table_lines)
-        
-        print(f"找到 {len(all_tables)} 个表格")
+        evaluations: List[Dict[str, Any]] = []
+        tables = MarkdownUtils.parse_markdown_tables(ai_response)
+        print(f"找到 {len(tables)} 个表格")
         print("开始解析表格数据...")
-        
-        if not all_tables:
+
+        if not tables:
             print("未找到有效的表格数据")
             return evaluations
-        
-        # 解析每个表格
-        for table_index, table_lines in enumerate(all_tables):
-            print(f"解析第 {table_index + 1} 个表格，包含 {len(table_lines)} 行")
-            
-            current_case = None
-            case_id = None
-            
-            for line in table_lines:
-                parts = [part.strip() for part in line.split('|')[1:-1]]
-                if len(parts) >= 3:
-                    field_info = parts[0]
-                    score = parts[1]
-                    suggestion = parts[2]
-                    
-                    # 检查是否包含用例ID
-                    if '**用例ID**' in field_info or 'ID' in field_info:
-                        # 提取用例ID - 更robust的方式
-                        if '<br>' in field_info:
-                            id_part = field_info.split('<br>')[-1].strip()
+
+        # 将通用表格转换为业务结构
+        for idx, tbl in enumerate(tables):
+            headers = tbl.get("headers", [])
+            rows = tbl.get("rows", [])
+            print(f"解析第 {idx + 1} 个表格，包含 {len(rows)} 行")
+
+            current_case: Optional[Dict[str, Any]] = None
+            case_id: Optional[str] = None
+
+            # 逐行处理
+            for row in rows:
+                # 预期列：用例信息 | 分数 | 改进建议
+                if len(row) < 3:
+                    continue
+                field_info, score, suggestion = row[0].strip(), row[1].strip(), row[2].strip()
+
+                if '**用例ID**' in field_info or 'ID' in field_info:
+                    # 提取用例ID
+                    if '<br>' in field_info:
+                        id_part = field_info.split('<br>')[-1].strip()
+                    else:
+                        id_match = re.search(r'\d{8,}', field_info)
+                        id_part = id_match.group() if id_match else field_info.replace('**用例ID**', '').strip()
+
+                    case_id = id_part
+                    print(f"  正在解析用例ID: {case_id}")
+                    if current_case:
+                        evaluations.append(current_case)
+                    current_case = {'test_case_id': case_id, 'evaluations': []}
+                    continue
+
+                if current_case and '**' in field_info:
+                    if '<br>' in field_info:
+                        field_parts = field_info.split('<br>')
+                        field_name = field_parts[0].replace('**', '').strip()
+                        field_content = '<br>'.join(field_parts[1:]).strip() if len(field_parts) > 1 else ''
+                        field_content = field_content.replace('<br>', '\n')
+                    else:
+                        parts = field_info.split('**')
+                        if len(parts) >= 3:
+                            field_name = parts[1].strip()
+                            field_content = '**'.join(parts[2:]).strip()
                         else:
-                            # 尝试从整行中提取数字ID
-                            import re
-                            id_match = re.search(r'\d{8,}', field_info)  # 匹配8位以上的数字ID
-                            id_part = id_match.group() if id_match else field_info.replace('**用例ID**', '').strip()
-                        
-                        case_id = id_part
-                        print(f"  正在解析用例ID: {case_id}")
-                        
-                        # 保存之前的用例
-                        if current_case:
-                            evaluations.append(current_case)
-                        
-                        # 开始新用例
-                        current_case = {
-                            'test_case_id': case_id,
-                            'evaluations': []
-                        }
-                        
-                    elif current_case and '**' in field_info:
-                        # 提取字段名和内容，正确处理多行内容（<br>分隔）
-                        if '<br>' in field_info:
-                            field_parts = field_info.split('<br>')
-                            field_name = field_parts[0].replace('**', '').strip()
-                            # 合并所有内容部分，用换行符连接
-                            field_content = '<br>'.join(field_parts[1:]).strip() if len(field_parts) > 1 else ''
-                            # 将<br>转换为实际换行符，便于阅读
-                            field_content = field_content.replace('<br>', '\n')
-                        else:
-                            # 处理没有<br>的情况，尝试从 ** 标记后提取内容
-                            if '**' in field_info:
-                                parts = field_info.split('**')
-                                if len(parts) >= 3:  # **字段名**内容
-                                    field_name = parts[1].strip()
-                                    field_content = '**'.join(parts[2:]).strip()
-                                else:
-                                    field_name = field_info.replace('**', '').strip()
-                                    field_content = ''
-                            else:
-                                field_name = field_info.strip()
-                                field_content = ''
-                        
-                        # 去除多余的星号和清理内容
-                        field_name = field_name.replace('*', '').strip()
-                        field_content = field_content.replace('*', '').strip()
-                        
-                        print(f"    解析字段: {field_name} (分数: {score.strip() if score.strip() != '-' else '无'})")
-                        
-                        evaluation_item = {
-                            'field': field_name,
-                            'content': field_content,
-                            'score': score.strip() if score.strip() != '-' else None,
-                            'suggestion': suggestion.strip() if suggestion.strip() != '-' else None
-                        }
-                        
-                        current_case['evaluations'].append(evaluation_item)
-            
-            # 添加当前表格的最后一个用例
+                            field_name = field_info.replace('**', '').strip()
+                            field_content = ''
+
+                    field_name = field_name.replace('*', '').strip()
+                    field_content = field_content.replace('*', '').strip()
+
+                    print(f"    解析字段: {field_name} (分数: {score if score != '-' else '无'})")
+                    evaluation_item = {
+                        'field': field_name,
+                        'content': field_content,
+                        'score': score if score != '-' else None,
+                        'suggestion': suggestion if suggestion != '-' else None,
+                    }
+                    current_case['evaluations'].append(evaluation_item)
+
             if current_case:
                 evaluations.append(current_case)
                 print(f"  完成用例解析: {current_case['test_case_id']}")
-        
+
         print(f"成功解析 {len(evaluations)} 个用例的评估结果")
         if evaluations:
-            # 输出解析结果的示例
             first_case = evaluations[0]
             print(f"示例解析结果 - 用例ID: {first_case['test_case_id']}, 评估项数: {len(first_case['evaluations'])}")
-            for item in first_case['evaluations'][:2]:  # 显示前两个评估项
+            for item in first_case['evaluations'][:2]:
                 print(f"    - {item['field']}: 分数={item['score']}, 建议={item['suggestion']}")
-        
+
         return evaluations
     
     async def evaluate_test_cases(self, test_cases: List[Dict[str, Any]], 
