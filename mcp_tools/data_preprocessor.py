@@ -21,29 +21,21 @@ from docx import Document
 import csv
 import shutil
 import uuid
-from .common_utils import get_api_manager, get_file_manager, get_token_counter, TokenBudgetUtils
+from .common_utils import get_api_manager, get_file_manager
 
 mcp = FastMCP("data_preprocessor")
 
 async def call_deepseek_api(content: str, session: aiohttp.ClientSession) -> str:
-    """调用 DeepSeek/SF 复述接口，并基于总上下文预算动态分配输出tokens。"""
+    """调用 DeepSeek API 对内容进行复述"""
     api_manager = get_api_manager()
-    token_counter = get_token_counter()
-
+    
     prompt = f"""适当简化以下文本，保留关键信息：
 
 {content}
 
 只输出简化结果，不要解释。"""
 
-    # 动态计算输出token预算（统一工具）：总预算=6000
-    max_out = TokenBudgetUtils.compute_response_tokens(
-        prompt,
-        total_budget=6000,
-        desired_response_cap=2000,
-    )
-
-    return await api_manager.call_llm(prompt, session, max_tokens=max_out)
+    return await api_manager.call_llm(prompt, session, max_tokens=2000)
 
 def clean_html_styles(html_content: str) -> str:
     """清理HTML样式信息，保留有意义的文字内容、超链接和图片地址"""

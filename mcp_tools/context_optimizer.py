@@ -18,7 +18,7 @@ TAPD 数据智能摘要优化工具
 
 import json, os, aiohttp, asyncio
 from typing import Dict, List, Callable, Awaitable, AsyncIterable
-from .common_utils import get_api_manager, get_file_manager, TransmissionManager, get_token_counter, TokenBudgetUtils
+from .common_utils import get_api_manager, get_file_manager, TransmissionManager
 
 # ---------------------------------------------------------------------------
 # 1. Pagination helpers
@@ -79,17 +79,8 @@ async def summarize_chunk(
     max_retries: int = 2,
     retry_backoff: float = 1.5,
     chunk_index: int = 0,
-    total_budget_tokens: int = 6000,
 ) -> str:
     """对单个数据块生成详细摘要（100-300字），接入ACK验证与重试机制"""
-    # 计算安全的响应token预算：total_budget_tokens = prompt_tokens + response_tokens + safety
-    def safe_output_tokens(prompt_text: str, desired: int) -> int:
-        return TokenBudgetUtils.compute_response_tokens(
-            prompt_text,
-            total_budget=total_budget_tokens,
-            desired_response_cap=desired,
-            safety_tokens=None,
-        )
     # 第一步：为分块内条目分配稳定ID并请求ACK
     items_min = tm.assign_ids(chunk)
     sent_ids = [x["id"] for x in items_min]
@@ -99,14 +90,10 @@ async def summarize_chunk(
     ack_json = None
     for attempt in range(max_retries + 1):
         try:
-            ack_max_tokens = safe_output_tokens(
-                ack_prompt,
-                800 if ack_mode == "ack_and_analyze" else 300,
-            )
             ack_resp = await call_llm(
                 ack_prompt,
                 session,
-                max_tokens=ack_max_tokens,
+                max_tokens=800 if ack_mode == "ack_and_analyze" else 300,
             )
             ack_json = tm.extract_first_json(ack_resp)
             verify = tm.verify_ack(sent_ids, ack_json)
@@ -168,12 +155,10 @@ async def summarize_chunk(
 
 生成专业的项目质量分析摘要："""
     
-    # 为分析摘要计算动态输出预算
-    analysis_max = safe_output_tokens(prompt, 600)
-    return await call_llm(prompt, session, max_tokens=analysis_max)
+    return await call_llm(prompt, session, max_tokens=600)
 
 
-async def recursive_summary(sentences: List[str], session: aiohttp.ClientSession, *, total_budget_tokens: int = 6000) -> str:
+async def recursive_summary(sentences: List[str], session: aiohttp.ClientSession) -> str:
     """递归合并多个分块摘要为完整的项目概览（300-500字）"""
     if len(sentences) == 1:
         return sentences[0]
@@ -190,13 +175,7 @@ async def recursive_summary(sentences: List[str], session: aiohttp.ClientSession
 4. 关键改进建议
 
 TAPD项目质量概览："""
-    # 动态计算合并摘要可用输出token
-    merge_max = TokenBudgetUtils.compute_response_tokens(
-        merged_prompt,
-        total_budget=total_budget_tokens,
-        desired_response_cap=800,
-    )
-    return await call_llm(merged_prompt, session, max_tokens=merge_max)
+    return await call_llm(merged_prompt, session, max_tokens=800)
 
 # ---------------------------------------------------------------------------
 # 4. build_overview
@@ -288,7 +267,6 @@ async def build_overview(
                     max_retries=max_retries,
                     retry_backoff=retry_backoff,
                     chunk_index=i,
-                    total_budget_tokens=max_total_tokens,
                 )
                 chunk_summaries.append(summary)
                 print(f"[完成] 完成第 {i+1}/{len(chunks)} 个数据块的摘要生成")
@@ -296,7 +274,7 @@ async def build_overview(
             # 递归合并摘要
             if len(chunk_summaries) > 1:
                 print("[合并中] 正在合并多个数据块的摘要...")
-                summary_text = await recursive_summary(chunk_summaries, session, total_budget_tokens=max_total_tokens)
+                summary_text = await recursive_summary(chunk_summaries, session)
                 print("[合并完成] 摘要合并完成")
             else:
                 summary_text = chunk_summaries[0] if chunk_summaries else "无法生成摘要。"

@@ -832,6 +832,59 @@ class BatchingUtils:    # 无状态、仅提供静态方法，不提供全局实
         next_index = start_index + len(batch)
         return batch, next_index, last_tokens
 
+class TokenBudgetUtils:  # 无状态：统一的回复token预算计算工具
+    """
+    统一的回复 token 预算计算：确保在总上下文窗口内满足 请求(prompt)+回复(response)+安全余量(safety)。
+
+    典型用法：
+        max_out = TokenBudgetUtils.compute_response_tokens(prompt_text, total_budget=6000, desired_response_cap=800)
+
+    约定：
+    - total_budget: 模型总上下文预算（prompt+response+safety），如 4k/8k/16k。
+    - desired_response_cap: 业务侧希望的最大回复上限；最终返回不会超过它。
+    - safety_tokens: 预留的安全余量；不传则按 total_budget 的 5%（且不小于128，不大于512）取值。
+    - min_out: 在可行范围内，尽量给到的最小回复上限，避免 0 或过小导致 API 拒绝。
+    """
+
+    @staticmethod
+    def compute_response_tokens(
+        prompt_text: str,
+        *,
+        total_budget: int = 6000,
+        desired_response_cap: int = 800,
+        safety_tokens: Optional[int] = None,
+        min_out: int = 64,
+    ) -> int:
+        # 计数请求侧 tokens
+        try:
+            tc = get_token_counter()
+            prompt_tokens = tc.count_tokens(prompt_text or "")
+        except Exception:
+            # 最保守退化：4字符≈1token
+            prompt_tokens = max(0, len(prompt_text or "") // 4)
+
+        # 安全余量：默认 total 的 5%，夹在 [128,512]
+        if safety_tokens is None:
+            safety = max(128, min(512, int(total_budget * 0.05)))
+        else:
+            safety = max(0, int(safety_tokens))
+
+        # 可用于回复的预算
+        available = total_budget - prompt_tokens - safety
+
+        # 基于可用预算与业务上限取最小，同时保证不低于 min_out
+        if available <= 0:
+            # prompt 已超预算，退化到很小的回复上限，尽量不为0
+            return max(16, min(min_out, desired_response_cap))
+
+        # 正常路径
+        max_resp = min(desired_response_cap, available)
+        if max_resp < min_out:
+            # 预算不够时，仍提供一个小的可用窗口，避免为0
+            return max(16, max_resp)
+        return int(max_resp)
+
+
 
 class MarkdownUtils:    # 无状态、仅提供静态方法，不提供全局实例函数
     """Markdown表格解析通用工具（纯解析，不做业务映射）。"""

@@ -74,6 +74,7 @@ from common_utils import (
     get_token_counter,
     BatchingUtils,
     MarkdownUtils,
+    TokenBudgetUtils,
 )
 from test_case_rules_customer import get_test_case_rules
 from test_case_require_list_knowledge_base import RequirementKnowledgeBase
@@ -316,14 +317,13 @@ class TestCaseEvaluator:
             test_cases_json=test_cases_json
         )
         
-        # 计算请求token数量，基于总体上下文预算动态设置响应token限制
+        # 计算请求token数量，由统一助手在总预算内计算响应上限
         request_tokens = self.token_counter.count_tokens(final_prompt)
-        # 留出安全余量，确保请求tokens + 响应tokens + 安全余量 <= max_context_tokens
-        safety_tokens = max(128, int(self.max_context_tokens * 0.05))
-        allowed_response_by_total = max(64, self.max_context_tokens - request_tokens - safety_tokens)
-        # 最终响应上限同时受全局响应上限与“总预算剩余”约束
-        dynamic_response_tokens = max(64, min(self.max_response_tokens, allowed_response_by_total))
-        
+        dynamic_response_tokens = TokenBudgetUtils.compute_response_tokens(
+            final_prompt,
+            total_budget=self.max_context_tokens,
+            desired_response_cap=self.max_response_tokens,
+        )
         print(f"批量处理 {len(test_cases)} 个用例: 请求tokens={request_tokens}, 响应tokens限制={dynamic_response_tokens}")
         
         # 显示正在处理的测试用例ID
