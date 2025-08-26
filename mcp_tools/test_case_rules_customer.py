@@ -7,10 +7,10 @@
 3. 三类优先级占比范围
 
 配置操作说明：
-1. 查看当前配置：运行 python test_case_rules_customer.py
-2. 修改配置：运行 python test_case_rules_customer.py --config
-3. 重置为默认：运行 python test_case_rules_customer.py --reset
-4. 查看配置项说明：运行 python test_case_rules_customer.py --help
+1. 查看当前配置：运行 uv run mcp_tools\test_case_rules_customer.py
+2. 修改配置：运行 uv run mcp_tools\test_case_rules_customer.py --config
+3. 重置为默认：运行 uv run mcp_tools\test_case_rules_customer.py --reset
+4. 查看配置项说明：运行 uv run mcp_tools\test_case_rules_customer.py --help
 
 配置文件存储位置：config/test_case_rules.json
 """
@@ -270,9 +270,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
-  python test_case_rules_customer.py              # 查看当前配置
-  python test_case_rules_customer.py --config     # 交互式配置
-  python test_case_rules_customer.py --reset      # 重置为默认配置
+  uv run mcp_tools\test_case_rules_customer.py              # 查看当前配置
+  uv run mcp_tools\test_case_rules_customer.py --config     # 交互式配置
+  uv run mcp_tools\test_case_rules_customer.py --reset      # 重置为默认配置
         """
     )
     
