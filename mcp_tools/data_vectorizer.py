@@ -14,10 +14,28 @@ TAPD数据向量化工具
 import json
 import os
 import pickle
+import sys
 from typing import List, Dict, Any, Optional
 import numpy as np
 import faiss
-from .common_utils import get_config, get_model_manager, get_file_manager, TextProcessor
+
+# 兼容作为脚本直接运行与作为包导入两种场景
+try:
+    from .common_utils import (
+        get_config,
+        get_model_manager,
+        get_file_manager,
+        TextProcessor,
+    )
+except ImportError:
+    # 直接运行脚本（uv run mcp_tools\data_vectorizer.py）时，退回到绝对导入
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from mcp_tools.common_utils import (  # type: ignore
+        get_config,
+        get_model_manager,
+        get_file_manager,
+        TextProcessor,
+    )
 
 
 class TAPDDataVectorizer:
@@ -40,6 +58,26 @@ class TAPDDataVectorizer:
         self.vector_db_path = vector_db_path or self.config.get_vector_db_path()
         self.index: Optional[faiss.Index] = None
         self.metadata: List[Dict[str, Any]] = []
+
+    # --- FAISS 兼容性封装：适配不同Python封装签名 ---
+    def _faiss_add(self, x: np.ndarray) -> None:
+        """兼容不同 add 接口：优先使用 add(x)，失败时回退 add(n, x)"""
+        try:
+            self.index.add(x)  # type: ignore[arg-type]
+        except TypeError:
+            n = int(x.shape[0])
+            self.index.add(n, x)  # type: ignore[misc]
+
+    def _faiss_search(self, x: np.ndarray, k: int):
+        """兼容不同 search 接口：优先使用 search(x, k)，失败时回退 search(n, x, k, distances, labels)"""
+        try:
+            return self.index.search(x, k)  # type: ignore[call-arg]
+        except TypeError:
+            n = int(x.shape[0])
+            distances = np.empty((n, k), dtype=np.float32)
+            labels = np.empty((n, k), dtype=np.int64)
+            self.index.search(n, x, k, distances, labels)  # type: ignore[misc]
+            return distances, labels
         
     def _get_model(self):
         """获取模型实例"""
@@ -143,7 +181,8 @@ class TAPDDataVectorizer:
             texts = [chunk['text'] for chunk in all_chunks]
             
             model = self._get_model()
-            vectors = model.encode(texts, show_progress_bar=True)
+            # 关闭进度条，减少MCP通道输出与开销
+            vectors = model.encode(texts, show_progress_bar=False)
             
             # 创建FAISS索引
             print("正在创建向量索引...")
@@ -153,7 +192,8 @@ class TAPDDataVectorizer:
             # 标准化向量以便使用余弦相似度
             vectors_float32 = vectors.astype(np.float32)
             faiss.normalize_L2(vectors_float32)
-            self.index.add(vectors_float32)
+            # 兼容不同签名
+            self._faiss_add(vectors_float32)
             
             # 保存元数据
             self.metadata = [chunk['metadata'] for chunk in all_chunks]
@@ -251,15 +291,16 @@ class TAPDDataVectorizer:
                 if not self.load_vector_db():
                     return []
             
-            # 向量化查询
+            # 向量化查询（保持与Faiss接口的数据类型一致）
             model = self._get_model()
-            query_vector = model.encode([query])
+            query_vector = model.encode([query]).astype(np.float32)
             faiss.normalize_L2(query_vector)
             
             # 搜索
             if self.index is not None:
                 query_float32 = query_vector.astype(np.float32)
-                scores, indices = self.index.search(query_float32, top_k)
+                # 兼容不同签名
+                scores, indices = self._faiss_search(query_float32, top_k)
             else:
                 raise ValueError("索引未正确加载")
             
@@ -314,7 +355,7 @@ async def vectorize_tapd_data(data_file_path: Optional[str] = None, chunk_size: 
     返回:
         处理结果字典
     """
-    vectorizer = TAPDDataVectorizer()
+    vectorizer = get_global_vectorizer()
     
     try:
         success = vectorizer.process_tapd_data(data_file_path, chunk_size)
@@ -355,32 +396,49 @@ async def search_tapd_data(query: str, top_k: int = 5) -> dict:
     返回:
         搜索结果字典
     """
-    vectorizer = TAPDDataVectorizer()
-    
+    vectorizer = get_global_vectorizer()
+
     try:
-        results = vectorizer.search_similar(query, top_k)
-        
-        if results:
-            # 格式化返回结果
+        # 轻量防御：空查询直接返回
+        if not query or not str(query).strip():
+            return {
+                "status": "error",
+                "message": "查询内容为空"
+            }
+
+        # 限制每批返回的条目数（items per batch），避免过大带来IO与序列化开销
+        items_per_batch = max(1, min(int(top_k), 50))
+
+        # 固定返回相似度最高的前两批（即前2个分片/组）
+        group_count = 2
+        top_chunks = vectorizer.search_similar(query, group_count)
+
+        if top_chunks:
             formatted_results = []
-            for result in results:
-                metadata = result['metadata']
-                formatted_result = {
-                    'relevance_score': result['score'],
+            for rank, chunk in enumerate(top_chunks, start=1):
+                metadata = chunk['metadata']
+                # 从该分片的原始条目中取前 items_per_batch 条
+                # 目前按原顺序截取，如需更精准可在未来加入条目级向量或关键词打分
+                items = (chunk.get('items') or [])[:items_per_batch]
+
+                formatted_results.append({
+                    'batch_rank': rank,
+                    'relevance_score': float(chunk['score']),
                     'chunk_info': {
                         'chunk_id': metadata.get('chunk_id'),
                         'item_type': metadata.get('item_type'),
                         'item_count': metadata.get('item_count'),
                         'item_ids': metadata.get('item_ids', [])
                     },
-                    'items': result['items'][:3]  # 只返回前3个条目以节省空间
-                }
-                formatted_results.append(formatted_result)
-            
+                    'items': items
+                })
+
             return {
                 "status": "success",
-                "message": f"找到 {len(results)} 个相关结果",
+                "message": f"返回前{len(formatted_results)}批结果，每批 {items_per_batch} 条",
                 "query": query,
+                "batches": len(formatted_results),
+                "items_per_batch": items_per_batch,
                 "results": formatted_results
             }
         else:
@@ -402,7 +460,7 @@ async def get_vector_db_info() -> dict:
     返回:
         数据库信息字典
     """
-    vectorizer = TAPDDataVectorizer()
+    vectorizer = get_global_vectorizer()
     
     try:
         # 检查数据库是否存在
@@ -432,3 +490,59 @@ async def get_vector_db_info() -> dict:
             "status": "error",
             "message": f"获取向量数据库信息失败: {str(e)}"
         }
+
+
+# --- 模块级单例，避免每次MCP调用重复加载模型/索引 ---
+_GLOBAL_VECTORIZER: Optional[TAPDDataVectorizer] = None
+
+def get_global_vectorizer() -> TAPDDataVectorizer:
+    global _GLOBAL_VECTORIZER
+    if _GLOBAL_VECTORIZER is None:
+        _GLOBAL_VECTORIZER = TAPDDataVectorizer()
+        # 尝试预加载索引，若不存在则按需加载
+        _GLOBAL_VECTORIZER.load_vector_db()
+    return _GLOBAL_VECTORIZER
+
+
+# 轻量级 CLI，便于直接通过命令行进行快速测试/使用
+if __name__ == "__main__":
+    import argparse
+    import asyncio
+
+    parser = argparse.ArgumentParser(description="TAPD 数据向量化工具 (CLI)")
+    subparsers = parser.add_subparsers(dest="command")
+
+    # info 子命令：查看向量库状态
+    subparsers.add_parser("info", help="查看向量数据库状态与统计信息")
+
+    # vectorize 子命令：执行向量化
+    p_vec = subparsers.add_parser("vectorize", help="执行TAPD数据向量化")
+    p_vec.add_argument("--file", "-f", dest="data_file_path", default=None, help="数据文件路径，默认使用 local_data/msg_from_fetcher.json")
+    p_vec.add_argument("--chunk", "-c", dest="chunk_size", type=int, default=10, help="分片大小，默认10")
+
+    # search 子命令：语义搜索
+    p_search = subparsers.add_parser("search", help="在向量库中进行语义搜索")
+    p_search.add_argument("--query", "-q", required=True, help="自然语言查询")
+    p_search.add_argument("--topk", "-k", type=int, default=5, help="返回TopK，默认5")
+
+    args = parser.parse_args()
+
+    async def _main():
+        if args.command == "vectorize":
+            res = await vectorize_tapd_data(data_file_path=args.data_file_path, chunk_size=args.chunk_size)
+            print(json.dumps(res, ensure_ascii=False, indent=2))
+        elif args.command == "search":
+            res = await search_tapd_data(query=args.query, top_k=args.topk)
+            print(json.dumps(res, ensure_ascii=False, indent=2))
+        else:
+            # 默认展示 info
+            res = await get_vector_db_info()
+            print(json.dumps(res, ensure_ascii=False, indent=2))
+
+    try:
+        asyncio.run(_main())
+    except RuntimeError:
+        # 某些环境已存在事件循环（如在交互式环境），采用新循环
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(_main())

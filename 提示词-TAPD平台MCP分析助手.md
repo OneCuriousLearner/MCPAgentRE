@@ -35,7 +35,7 @@
 
 1. 生成项目概览（可选）
 2. 生成词频统计
-3. 使用词频统计中输出的结果或常用信息（如`查找订单相关的需求`、`用户评价功能的缺陷`、`高优先级的开发任务`，需要分别多次使用 MCP 工具），查询向量化数据库
+3. 【必须执行】使用词频统计中输出的高频结果、常用信息（如`查找订单相关的需求`、`用户评价功能的缺陷`、`高优先级的开发任务`，需要分别多次使用 MCP 工具），查询向量化数据库
 4. 分析输出结果，遵循如下规则
 	* 根据常规工作流，在 status 字段中，流程顺序为`planning -> developing -> status_2（产品体验） -> status_3（测试中） -> resolved`（可以在 `planning` 或 `developing` 阶段进入 `rejected` 阶段，在 `rejected` 之后可以重新进入 `planning` 阶段）
 	* 识别异常趋势
@@ -49,7 +49,7 @@
 
 1. **获取 TAPD 数据**：使用 `get_tapd_data()` 从 TAPD 平台获取需求和缺陷数据，获得的数据将保存在本地 `local_data\msg_from_fetcher.json` 用于后续处理。请定期更新本地数据，以确保数据的准确性和时效性。
 	* 当数据量较小（如小于 50 条）时，可以使用 `get_tapd_stories()` 与 `get_tapd_bugs()` 直接从 API 获取未经处理的数据，但不会保存至本地。
-	* 或者使用 `generate_fake_tapd_data(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)` 生成假数据，可用于测试模拟，此操作会覆盖本地 JSON 数据，重新使用 `get_tapd_data()` 可恢复。假数据默认存储于 `local_data\preprocessed_data.json`
+	* 或者使用 `generate_fake_tapd_data(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)` 生成假数据，可用于测试模拟，此操作会覆盖本地 JSON 数据，重新使用 `get_tapd_data()` 可恢复。假数据默认存储于 `local_data\fake_tapd.json`
 
 2. **生成项目概览（可选）**：使用 `generate_tapd_overview(since, until, max_total_tokens, use_local_data)` 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek API，需要提醒用户）。
 	* `use_local_data=True`（默认）：使用本地数据文件进行分析，适合测试和离线分析
@@ -58,7 +58,7 @@
 
 3. **预处理 description 功能**：使用`preprocess_tapd_description(data_file_path, output_file_path, use_api, process_documents, process_images)` 清理TAPD数据中description字段的HTML样式，提取有意义内容并通过 DeepSeek API 优化表达，压缩数据长度同时保留关键信息
 	* **预处理预览功能**：`preview_tapd_description_cleaning(data_file_path, item_count)` 预览description字段清理效果，展示压缩比例和提取信息，不修改原始数据
-	* `output_file_path` 默认存储于 `local_data/preprocessed_data.json`
+	* `output_file_path` 默认存储于 `local_data/msg_from_fetcher.json`
 	* `use_api=True` 将会使用 DeepSeek API，默认为 True，需要提醒用户进行配置。
 
 4. **生成词频统计**：使用 `analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)` 方法生成词频统计，用于为之后的搜索功能提供精准关键词建议。

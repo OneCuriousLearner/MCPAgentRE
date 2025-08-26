@@ -219,15 +219,18 @@ async def search_data(query: str, top_k: int = 5) -> str:
     功能描述:
         - 基于语义相似度搜索相关的需求和缺陷
         - 支持自然语言查询，无需精确匹配关键词
-        - 返回最相关的数据条目，避免处理全量数据
+        - 返回“前两批”最相关的分片，每批包含 top_k 条原始条目
         - 有效解决大批量数据分析的token限制问题
         
     参数:
         query (str): 搜索查询，支持中文自然语言描述
-        top_k (int): 返回最相似的K个结果，默认5个
+        top_k (int): 每批返回的原始条目数量。最终返回两批数据（最高相似度的两个分片），每批 top_k 条。
         
     返回:
-        str: 搜索结果的JSON字符串，包含相关度分数和数据详情
+        str: 搜索结果的JSON字符串，包含：
+            - batches: 返回的批次数（固定为2，若库不足可能小于2）
+            - items_per_batch: 每批条目数量（即入参 top_k）
+            - results: 列表，每项为一批，含 batch_rank、relevance_score、chunk_info、items
         
     使用示例:
         - "查找订单相关的需求"
@@ -511,7 +514,7 @@ async def analyze_word_frequency(
 @mcp.tool()
 async def preprocess_tapd_description(
     data_file_path: str = "local_data/msg_from_fetcher.json",
-    output_file_path: str = "local_data/preprocessed_data.json",
+    output_file_path: str = "local_data/msg_from_fetcher.json",
     use_api: bool = True,
     process_documents: bool = False,
     process_images: bool = False
@@ -528,7 +531,7 @@ async def preprocess_tapd_description(
         
     参数:
         data_file_path (str): 输入数据文件路径，默认"local_data/msg_from_fetcher.json"
-        output_file_path (str): 输出文件路径，默认"local_data/preprocessed_data.json"
+        output_file_path (str): 输出文件路径，默认"local_data/msg_from_fetcher.json"
         use_api (bool): 是否使用DeepSeek API进行内容复述，默认True
         process_documents (bool): 是否处理腾讯文档链接（预留功能），默认False
         process_images (bool): 是否处理图片内容（预留功能），默认False

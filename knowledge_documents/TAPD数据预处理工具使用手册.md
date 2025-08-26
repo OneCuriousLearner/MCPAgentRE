@@ -34,7 +34,7 @@ TAPD数据预处理工具是一个MCP工具，专门用于优化TAPD平台的需
 **参数说明：**
 
 - `data_file_path` (str): 输入数据文件路径，默认"local_data/msg_from_fetcher.json"
-- `output_file_path` (str): 输出文件路径，默认"local_data/preprocessed_data.json"
+- `output_file_path` (str): 输出文件路径，默认"local_data/msg_from_fetcher.json"
 - `use_api` (bool): 是否使用DeepSeek API进行内容复述，默认True
 - `process_documents` (bool): 是否处理腾讯文档链接（预留功能），默认False
 - `process_images` (bool): 是否处理图片内容（预留功能），默认False
@@ -49,7 +49,7 @@ TAPD数据预处理工具是一个MCP工具，专门用于优化TAPD平台的需
     "processed_items": 15,
     "api_calls": 12,
     "errors": 0,
-    "output_file": "local_data/preprocessed_data.json"
+    "output_file": "local_data/msg_from_fetcher.json"
   }
 }
 ```
@@ -116,7 +116,7 @@ preprocess_tapd_description(use_api=False)
 
 ```bash
 # 使用预处理后的数据进行词频分析
-analyze_tapd_word_frequency(data_file_path="local_data/preprocessed_data.json")
+analyze_tapd_word_frequency(data_file_path="local_data/msg_from_fetcher.json")
 
 # 或进行向量化处理
 vectorize_data()
