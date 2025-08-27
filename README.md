@@ -35,6 +35,16 @@
 * **`preview_tapd_description_cleaning(data_file_path, item_count)`** - 预览description字段清理效果，展示压缩比例和提取信息，不修改原始数据
 * **`docx_summarizer.py`** - 提取 .docx 文档中的文本、图片和表格信息，并生成摘要【仍在开发中...】
 
+#### 时间趋势分析工具
+
+* **`analyze_time_trends(data_type, chart_type, time_field, since, until, data_file_path)`** - 分析时间趋势，支持需求和缺陷数据，可自定义时间字段、时间范围和图表类型
+  * data_type : 数据类型，可选值为 "story" 和 "bug"
+  * chart_type : 图表类型，可选值为 "count" 和 "line"
+  * time_field : 时间字段，可选值为 "created" 和 "updated"
+  * since : 时间范围，格式为 "YYYY-MM-DD"，可选
+  * until : 时间范围，格式为 "YYYY-MM-DD"，可选
+  * data_file_path : 数据文件路径，可选，默认值为 "local_data/msg_from_fetcher.json"
+
 #### 向量化与搜索工具
 
 * **`vectorize_data(data_file_path, chunk_size)`** - 向量化工具，支持自定义数据源的向量化，将数据转换为向量格式，用于后续的语义搜索和分析
@@ -295,125 +305,7 @@ SiliconFlow提供多种优质模型，包括Kimi、通义千问等：
 
 #### 测试模式
 
-1. 如果需要验证`tapd_data_fetcher.py`是否正常获取数据，请运行以下指令：
-
-  ```bash
-  uv run tapd_data_fetcher.py
-  ```
-
-* 预期输出：
-
-  ```text
-  成功加载配置: 用户=********, 工作区=********
-  ===== 开始获取需求数据 =====
-  需求数据获取完成，共获取X条
-  ===== 开始获取缺陷数据 =====
-  缺陷数据获取完成，共获取Y条
-  数据已成功保存至msg_from_fetcher.json文件。
-  ```
-
-2. 如果需要验证`tapd_mcp_server.py` 中所有 MCP工具是否正常注册，请运行以下指令：
-
-  ```bash
-  uv run check_mcp_tools.py
-  ```
-
-  输出结果如下：
-
-  ```text
-  成功加载配置: 用户=4ikoesFM, 工作区=37857678
-  ✅ MCP服务器启动成功！
-  📊 已注册工具数量: 14
-
-  🛠️ 已注册的工具列表:
-      1. example_tool -
-      示例工具函数（用于演示MCP工具注册方式）
-
-      功能描述:
-          ...
-      2. get_tapd_data - 从TAPD API获取需求和缺陷数据并保存到本地文件
-
-      功能描述:
-          ...
-  ```
-
-3. **快速验证向量化功能**（推荐）：
-
-  ```bash
-  uv run test\vector_quick_start.py
-  ```
-
-* 该脚本会自动运行数据获取、向量化和搜索功能，验证整体流程是否正常
-* 首次使用时需要连接 VPN 以下载模型
-* 预期输出：显示向量化成功和搜索演示结果
-
-4. **上下文优化器和假数据生成测试**：
-
-  ```bash
-  # 生成模拟TAPD数据（用于测试）
-  uv run mcp_tools\fake_tapd_gen.py
-  
-  # 使用上下文优化器生成数据概览（离线模式）
-  uv run mcp_tools\context_optimizer.py -f local_data\msg_from_fetcher.json --offline --debug
-  
-  # 生成详细摘要（需要配置API密钥）
-  uv run mcp_tools\context_optimizer.py -f local_data\msg_from_fetcher.json --debug
-  ```
-
-* **环境变量配置（在线模式）**：为使用上下文优化器的在线LLM功能，需要设置以下环境变量：
-
-  ```bash
-  set DS_KEY=your_deepseek_api_key        # DeepSeek API密钥
-  set DS_EP=https://api.deepseek.com/v1   # API端点URL（可选，默认为DeepSeek）
-  set DS_MODEL=deepseek-chat          # 模型名称（可选，默认为deepseek-chat）
-  ```
-
-* 上下文优化器支持离线模式（`--offline`参数）和在线智能摘要生成
-* 假数据生成器用于测试和演示，生成符合TAPD格式的模拟数据
-
-5. **词频分析工具测试**：
-
-  ```bash
-  uv run mcp_tools\word_frequency_analyzer.py
-  ```
-
-* 该脚本会分析`local_data/msg_from_fetcher.json`中的数据，生成关键词词云统计
-
-6. **文档摘要生成测试**（仍在开发中）：
-
-  ```bash
-  uv run mcp_tools\docx_summarizer.py
-  ```
-
-* 该脚本会提取指定.docx文档中的文本、图片和表格信息，并生成摘要
-* 预期输出：生成的摘要JSON文件和提取的图片、表格文件
-
-7. **测试用例评估器**：
-
-  ```bash
-  # 运行自定义规则演示
-  uv run test\demo_custom_rules.py
-
-  # 运行需求单知识库初始化
-  uv run test\init_requirement_kb.py
-
-  # 运行测试用例评估器
-  uv run mcp_tools\test_case_evaluator.py
-  ```
-
-* 测试用例评估器会根据配置的规则评估测试用例质量，并生成评估报告
-* 首次运行时会自动生成默认规则配置文件 `config/test_case_rules.json` 与 `config/require_list_config.json`
-* 详细说明请参阅 `knowledge_documents\AI测试用例评估器操作手册.md`
-
-8. **API兼容性测试** 【🆕 2025年7月22日新增】：
-
-  ```bash
-  uv run test\test_api_compatibility.py
-  ```
-
-* 该脚本会测试DeepSeek和SiliconFlow两种API的连接性和响应
-* 预期输出：显示各API的调用结果和响应内容
-* 用于验证多API配置是否正确
+这部分已被移动至 [测试模式.md](测试模式.md)
 
 #### 正常模式
 

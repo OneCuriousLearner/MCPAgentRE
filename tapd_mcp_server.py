@@ -13,6 +13,7 @@ from mcp_tools.docx_summarizer import summarize_docx as _summarize_docx
 from mcp_tools.word_frequency_analyzer import analyze_tapd_word_frequency    # 导入词频分析器
 from mcp_tools.data_preprocessor import preprocess_description_field, preview_description_cleaning    # 导入数据预处理工具
 from mcp_tools.knowledge_base import enhance_tapd_data_with_knowledge    # 导入数据增强工具
+from mcp_tools.time_trend_analyzer import analyze_time_trends as analyze_trends    # 导入时间趋势分析工具
 
 # 初始化MCP服务器
 mcp = FastMCP("tapd")
@@ -666,6 +667,68 @@ async def enhance_tapd_with_knowledge(
             "suggestion": "请检查TAPD数据文件是否存在，建议先调用 get_tapd_data 工具获取数据"
         }
         return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def analyze_time_trends(
+    data_type: str = "story",
+    chart_type: str = "count",
+    time_field: str = "created",
+    since: str = None,
+    until: str = None,
+    data_file_path: str = "local_data/msg_from_fetcher.json"
+) -> str:
+    """
+    分析TAPD数据的时间趋势并生成可视化图表
+    
+    功能描述:
+        - 支持分析需求和缺陷数据的时间趋势
+        - 生成三种类型的图表：总数趋势、优先级分布、状态分布
+        - 支持自定义时间范围和统计字段
+        - 自动创建time_trend目录存储生成的图表
+        
+    参数:
+        data_type (str): 数据类型，可选 'story'(需求) 或 'bug'(缺陷)，默认 'story'
+        chart_type (str): 图表类型，可选 'count'(总数)、'priority'(优先级)、'status'(状态)，默认 'count'
+        time_field (str): 时间字段，默认为 'created'(创建时间)，可选 'modified'(修改时间)
+        since (str): 开始时间，格式 YYYY-MM-DD，默认None(全部时间)
+        until (str): 结束时间，格式 YYYY-MM-DD，默认None(全部时间)
+        data_file_path (str): 数据文件路径，默认 "local_data/msg_from_fetcher.json"
+        
+    返回:
+        str: 分析结果的JSON字符串，包含统计信息和图表路径
+        
+    使用场景:
+        - 监控项目需求和缺陷的数量变化趋势
+        - 分析高优先级任务的分布情况
+        - 跟踪任务完成状态的时间变化
+        - 生成项目质量报告的可视化图表
+        
+    注意事项:
+        - 需要先调用 get_tapd_data 获取数据
+        - 图表保存到 local_data/time_trend 目录
+        - 支持中英文显示，自动处理时间格式
+    """
+    try:
+        result = await analyze_trends(
+            data_type=data_type,
+            chart_type=chart_type,
+            time_field=time_field,
+            since=since,
+            until=until,
+            data_file_path=data_file_path
+        )
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"时间趋势分析失败：{str(e)}",
+            "suggestion": "请检查数据文件是否存在，时间格式是否正确(YYYY-MM-DD)"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
 
 if __name__ == "__main__":
 

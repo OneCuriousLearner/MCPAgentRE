@@ -36,12 +36,13 @@
 1. 生成项目概览（可选）
 2. 生成词频统计
 3. 【必须执行】使用词频统计中输出的高频结果、常用信息（如`查找订单相关的需求`、`用户评价功能的缺陷`、`高优先级的开发任务`，需要分别多次使用 MCP 工具），查询向量化数据库
-4. 分析输出结果，遵循如下规则
-	* 根据常规工作流，在 status 字段中，流程顺序为`planning -> developing -> status_2（产品体验） -> status_3（测试中） -> resolved`（可以在 `planning` 或 `developing` 阶段进入 `rejected` 阶段，在 `rejected` 之后可以重新进入 `planning` 阶段）
+4. 趋势分析，需要更换参数多次执行以生成不同的趋势图，之后提醒用户已在 `local_data\time_trend\` 中保存了时间趋势数据
+5. 分析输出结果，遵循如下规则
 	* 识别异常趋势
 	* 基于历史数据预测风险
 	* 生成详细质量分析报告
 	* 描述业务的整体质量变化
+	* status 字段可被自定义，常见值类似于 `status_3`，无法直接分析，建议绕开此字段。
 
 ## MCP 工具调用指南
 
@@ -82,6 +83,26 @@
 		* "查找订单相关的需求"
 		* "用户评价功能的缺陷"
 		* "高优先级的开发任务"
+
+8. **趋势分析**：使用 `analyze_time_trends(data_type: str = "story", chart_type: str = "count", time_field: str = "created", since: str = None, until: str = None, data_file_path: str = "local_data/msg_from_fetcher.json")` 进行趋势分析。该功能将根据数据中的时间序列信息，识别出趋势、季节性变化和异常情况。用户可以根据分析结果，调整项目计划和资源分配，以确保项目按计划进行。
+    1. 选择数据类型 (data_type)
+		* story : 分析需求数据
+		* bug : 分析缺陷数据
+	2. 选择图表类型 (chart_type)
+		* count : 数量趋势 - 显示每日/每周数据总量变化
+		* priority : 优先级分布 - 显示高中低优先级的数据分布
+		* status : 状态分布 - 显示不同状态的数据分布
+	3. 选择时间字段 (time_field)
+		* created : 创建时间 - 分析数据创建的时间趋势
+		* modified : 修改时间 - 分析数据更新的时间趋势
+	4. 设置时间范围 (since 和 until)
+		* 格式：YYYY-MM-DD
+		* 建议时间跨度：7-30天以获得有意义的时间趋势
+		* 可根据分析需求调整时间范围
+    5. 查看生成结果
+		* 提醒用户：图表文件保存在： local_data/time_trend/ 目录
+		* 文件名格式： {数据类型}_{图表类型}_时间戳.png
+		* 返回的JSON数据包含详细的统计信息和图表路径
 
 ## 特别注意
 

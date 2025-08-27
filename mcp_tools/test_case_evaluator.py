@@ -46,7 +46,6 @@ AI 测试用例评估器
 - 集成了统一的配置管理、文件管理和API管理接口
 """
 
-import os
 import re
 import json
 import asyncio

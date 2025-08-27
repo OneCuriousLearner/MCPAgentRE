@@ -72,3 +72,7 @@ test_results/
 evaluation_report*.json
 evaluation_report*.md
 nul
+
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md
