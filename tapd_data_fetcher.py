@@ -1,6 +1,7 @@
 import aiohttp
 import json
 import os
+import sys
 from datetime import datetime
 
 # 从配置文件读取API配置
@@ -37,9 +38,9 @@ try:
     API_USER = config['API_USER']
     API_PASSWORD = config['API_PASSWORD']
     WORKSPACE_ID = config['WORKSPACE_ID']
-    print(f"成功加载配置: 用户={API_USER}, 工作区={WORKSPACE_ID}")
+    print(f"成功加载配置: 用户={API_USER}, 工作区={WORKSPACE_ID}", file=sys.stderr)
 except Exception as e:
-    print(f"配置加载失败: {e}")
+    print(f"配置加载失败: {e}", file=sys.stderr)
     raise
 
 # 获取需求数据（支持分页）的函数

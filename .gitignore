@@ -51,6 +51,7 @@ models/*
 !models/deepseek_v3_tokenizer/
 
 # MarkDown files
+!knowledge_documents/MCP中文站/
 !knowledge_documents/TAPD API 文档/
 !knowledge_documents/DeepSeek API 文档/
 !knowledge_documents/SiliconFlow API 文档/

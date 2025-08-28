@@ -155,7 +155,6 @@ MCPAgentRE\
 ├─local_data\                 # 本地数据目录，用于存储从 TAPD 获取的数据、数据库等（Git 提交时会被忽略）
 │  ├─msg_from_fetcher.json        # 从 TAPD 获取的需求和缺陷数据
 │  ├─fake_tapd.json               # 假数据生成器生成的模拟 TAPD 数据
-│  ├─preprocessed_data.json       # 预处理后的 TAPD 数据
 │  └─vector_data\                 # 向量数据库文件目录
 │     ├─data_vector.index             # 向量数据库索引文件
 │     ├─data_vector.metadata.pkl      # 向量数据库元数据文件
@@ -171,9 +170,7 @@ MCPAgentRE\
 │  └─example_tool.py              # 示例工具
 ├─models\                     # 模型目录
 ├─test\                       # 测试目录
-│  ├─test_comprehensive.py        # 综合向量化功能测试
-│  ├─test_vectorization.py        # 基础向量化功能测试
-│  ├─test_data_vectorizer.py      # 测试完整版 data_vectorizer 工具功能
+│  ├─test_data_vectorizer.py      # 完整测试 data_vectorizer 向量化脚本功能
 │  ├─test_word_frequency.py       # 词频分析工具测试
 │  └─vector_quick_start.py        # 向量化功能快速启动脚本
 ├─.gitignore                  # Git 提交时遵守的过滤规则
@@ -319,6 +316,18 @@ SiliconFlow提供多种优质模型，包括Kimi、通义千问等：
   uv run tapd_mcp_server.py
   ```
 
+##### MCP 服务调试
+
+1. 确保`tapd_mcp_server.py`的 main 函数中没有任何 print 语句（或已注释掉），以避免在启动时输出调试信息。
+
+2. 运行MCP调试器：
+
+  ```bash
+  npx -y @modelcontextprotocol/inspector uv --directory . run tapd_mcp_server.py
+  ```
+
+  操作文档：[调试器 Inspector - MCP 官方文档中文版](https://mcp-docs.apifox.cn/6175082m0)
+
 ##### WorkFlow 脚本运行
 
 1. 评分规则配置
@@ -367,6 +376,37 @@ uv run mcp_tools/test_case_evaluator.py
 
 ## 连接步骤
 
+### 配置 Chatbox 以使用 MCP 服务器
+
+1. **打开 Chatbox**
+
+2. **配置 MCP 服务器**
+
+  * 在 Chatbox 的 `设置` 中，找到 `MCP` 标签页
+  * 在`自定义 MCP 服务器`栏，点击`添加服务器`：
+    * 复制以下 JSON 配置：
+
+      ```json
+      {
+        "mcpServers": {
+          "tapd_mcp_server": {
+            "command": "uv",
+            "args": [
+              "--directory",
+              "D:\\MiniProject\\MCPAgentRE",
+              "run",
+              "tapd_mcp_server.py"
+            ]
+          }
+        }
+      }
+      ```
+
+    * 确保`--directory`指向的是MCP服务器所在的目录，即`D:\MiniProject\MCPAgentRE`（请按照实际目录修改）
+  * 点击 `从剪贴板中的JSON导入`
+
+### 配置 Claude Desktop 以使用 MCP 服务器
+
 1. **打开Claude Desktop**
 
 * 启动Claude Desktop客户端
@@ -402,7 +442,7 @@ uv run mcp_tools/test_case_evaluator.py
 
 ## 测试连接
 
-* 点击Claude Desktop界面左上角的`+`按钮，选择`New Chat`
+* 开启一条新对话（若使用 Chatbox，需要点击对话框底部的锤子图标，勾选 `tapd_mcp_server`）
 * 在新的聊天窗口中，输入以下内容测试基础功能：
 
   ```text

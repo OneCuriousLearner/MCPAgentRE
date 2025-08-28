@@ -4,8 +4,12 @@
 """
 import os
 import json
+import sys
 import asyncio
 from datetime import datetime, timedelta
+import matplotlib
+# Use non-GUI backend to avoid Tkinter in background threads
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
@@ -13,7 +17,7 @@ from typing import Dict, List, Optional, Literal
 
 from mcp_tools.common_utils import get_config, get_file_manager
 
-# 设置中文字体支持
+# 设置中文字体支持（在 Agg 后端下仅影响渲染，不会引入 GUI）
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
@@ -76,6 +80,8 @@ def generate_daily_statistics(data_list: List[Dict],
             daily_stats[date_key] = {
                 'date': date_key,  # 存储字符串格式的日期，而不是datetime对象
                 'total_count': 0,
+                'completed_count': 0,   # 新增：完成数量（基于状态推断）
+                'new_count': 0,         # 新增：新建数量（基于状态推断）
                 'high_priority_count': 0,
                 'medium_priority_count': 0,
                 'low_priority_count': 0,
@@ -100,6 +106,13 @@ def generate_daily_statistics(data_list: List[Dict],
             if status not in daily_stats[date_key]['status_counts']:
                 daily_stats[date_key]['status_counts'][status] = 0
             daily_stats[date_key]['status_counts'][status] += 1
+
+            # 基于常见状态值推断 completed/new 计数（尽量宽松匹配）
+            st_lower = str(status).lower()
+            if any(k in st_lower for k in ['closed', 'resolved', 'done', '完成', '已解决', '已关闭']):
+                daily_stats[date_key]['completed_count'] += 1
+            if any(k in st_lower for k in ['new', 'open', '创建', '新建']):
+                daily_stats[date_key]['new_count'] += 1
     
     return daily_stats
 
@@ -108,9 +121,9 @@ def plot_time_trend_chart(daily_stats: Dict,
                          chart_type: Literal['count', 'priority', 'status'] = 'count',
                          data_type: str = 'story',
                          time_field: str = 'created',
-                         time_range: str = None,
-                         chart_title: str = None,
-                         output_path: str = None) -> str:
+                         time_range: Optional[str] = None,
+                         chart_title: Optional[str] = None,
+                         output_path: Optional[str] = None) -> str:
     """绘制时间趋势图表"""
     
     if not daily_stats:
@@ -119,7 +132,9 @@ def plot_time_trend_chart(daily_stats: Dict,
     # 按日期排序
     sorted_dates = sorted(daily_stats.keys())
     # 将字符串日期转换为datetime对象用于绘图
-    dates = [datetime.strptime(date_str, "%Y-%m-%d") for date_str in sorted_dates]
+    date_objs = [datetime.strptime(date_str, "%Y-%m-%d") for date_str in sorted_dates]
+    # Convert to numbers for type checkers while matplotlib accepts datetime
+    dates = mdates.date2num(date_objs)
     
     fig, ax = plt.subplots(figsize=(12, 6))
     
@@ -202,9 +217,9 @@ async def analyze_time_trends(
     data_type: Literal['story', 'bug'] = 'story',
     chart_type: Literal['count', 'priority', 'status'] = 'count',
     time_field: str = 'created',
-    since: str = None,
-    until: str = None,
-    chart_title: str = None,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+    chart_title: Optional[str] = None,
     data_file_path: str = "local_data/msg_from_fetcher.json"
 ) -> Dict:
     """
@@ -285,12 +300,12 @@ async def analyze_time_trends(
     total_count = len(filtered_data)
     date_range = list(daily_stats.keys())
     
-    print('测试结果：')
+    print('[TimeTrend] Sample daily stats preview:', file=sys.stderr, flush=True)
     for date_key, daily_data in daily_stats.items():
-        print(f'日期: {date_key}')
-        print(f'  总数: {daily_data["total_count"]}')
-        print(f'  状态分布: {daily_data["status_counts"]}')
-        print()
+        print(f'Date: {date_key}', file=sys.stderr, flush=True)
+        print(f'  Total: {daily_data["total_count"]}', file=sys.stderr, flush=True)
+        print(f'  Status counts: {daily_data["status_counts"]}', file=sys.stderr, flush=True)
+        print('', file=sys.stderr, flush=True)
     
     result = {
         'status': 'success',

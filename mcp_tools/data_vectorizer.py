@@ -15,9 +15,13 @@ import json
 import os
 import pickle
 import sys
+import asyncio
+import time
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 import numpy as np
 import faiss
+from contextlib import redirect_stdout
 
 # 兼容作为脚本直接运行与作为包导入两种场景
 try:
@@ -58,6 +62,11 @@ class TAPDDataVectorizer:
         self.vector_db_path = vector_db_path or self.config.get_vector_db_path()
         self.index: Optional[faiss.Index] = None
         self.metadata: List[Dict[str, Any]] = []
+        self._last_error: Optional[str] = None
+
+    # Lightweight logging (timestamped; flush immediately to Inspector notifications)
+    def _log(self, msg: str) -> None:
+        print(f"[Vectorizer {datetime.now().strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
 
     # --- FAISS 兼容性封装：适配不同Python封装签名 ---
     def _faiss_add(self, x: np.ndarray) -> None:
@@ -82,6 +91,28 @@ class TAPDDataVectorizer:
     def _get_model(self):
         """获取模型实例"""
         return self.model_manager.get_model(self.model_name)
+    
+    async def _get_model_async(self):
+        """异步获取模型实例"""
+        return await self.model_manager.get_model_async(self.model_name)
+
+    def _encode_texts_with_progress(self, model, texts: List[str], batch_size: int = 64) -> np.ndarray:
+        """分批进行编码，输出进度日志，避免长时间无输出。"""
+        n = len(texts)
+        if n == 0:
+            return np.zeros((0, 384), dtype=np.float32)  # 维度将被实际模型覆盖，这里仅占位
+        vecs: List[np.ndarray] = []
+        start = time.perf_counter()
+        for i in range(0, n, batch_size):
+            batch = texts[i:i+batch_size]
+            t0 = time.perf_counter()
+            v = model.encode(batch, show_progress_bar=False)
+            dt = time.perf_counter() - t0
+            self._log(f"Encoding progress {min(i+len(batch), n)}/{n}, batch elapsed {dt:.2f}s")
+            vecs.append(v)
+        total_dt = time.perf_counter() - start
+        self._log(f"Encoding completed, total {total_dt:.2f}s")
+        return np.vstack(vecs)
     
     def _chunk_data(self, items: List[Dict[str, Any]], item_type: str, chunk_size: int) -> List[Dict[str, Any]]:
         """
@@ -147,17 +178,31 @@ class TAPDDataVectorizer:
             bool: 处理是否成功
         """
         try:
-            # 读取数据
-            if data_file_path:
-                data = self.file_manager.load_tapd_data(data_file_path)
-            else:
-                data = self.file_manager.load_tapd_data()
+            # Read data (resolve path from project root; default to local_data/msg_from_fetcher.json)
+            project_root = self.config._get_project_root()  # 项目根目录
+            effective_path = data_file_path if (data_file_path and str(data_file_path).strip()) else os.path.join("local_data", "msg_from_fetcher.json")
+
+            # 相对路径按“项目根目录”为基准进行解析
+            if not os.path.isabs(effective_path):
+                effective_path = os.path.join(project_root, effective_path.lstrip("\\/"))
+
+            if not os.path.exists(effective_path):
+                # Raise with a clear hint for MCP error propagation
+                raise FileNotFoundError(f"Data file not found: {effective_path}")
+            self._log(f"Start vectorization, data file: {effective_path}")
+            if chunk_size <= 0:
+                self._log(f"Warning: invalid chunk_size {chunk_size}, fallback to 10")
+                chunk_size = 10
+            # Read JSON by absolute path; avoid any special local_data-relative logic
+            t0 = time.perf_counter()
+            data = self.file_manager.load_json_data(effective_path)
+            self._log(f"Data file loaded in {(time.perf_counter()-t0):.2f}s")
             
             # 提取需求和缺陷数据
             stories = data.get('stories', [])
             bugs = data.get('bugs', [])
             
-            print(f"发现 {len(stories)} 个需求, {len(bugs)} 个缺陷")
+            self._log(f"Found {len(stories)} stories, {len(bugs)} bugs")
             
             # 分片处理数据
             all_chunks = []
@@ -165,47 +210,58 @@ class TAPDDataVectorizer:
             if stories:
                 story_chunks = self._chunk_data(stories, "story", chunk_size)
                 all_chunks.extend(story_chunks)
-                print(f"需求数据分为 {len(story_chunks)} 个分片")
+                self._log(f"Stories split into {len(story_chunks)} chunks")
             
             if bugs:
                 bug_chunks = self._chunk_data(bugs, "bug", chunk_size)
                 all_chunks.extend(bug_chunks)
-                print(f"缺陷数据分为 {len(bug_chunks)} 个分片")
+                self._log(f"Bugs split into {len(bug_chunks)} chunks")
             
             if not all_chunks:
-                print("警告: 没有找到可处理的数据")
+                self._log("Warning: no data to process")
+                self._last_error = "No stories or bugs in data"
                 return False
             
             # 向量化文本
-            print(f"正在向量化 {len(all_chunks)} 个文本分片...")
+            self._log(f"Vectorizing {len(all_chunks)} text chunks...")
             texts = [chunk['text'] for chunk in all_chunks]
             
+            t0 = time.perf_counter()
+            self._log("Loading model...")
+            # 直接获取模型，依赖日志降噪配置避免第三方库写入 stdout
             model = self._get_model()
-            # 关闭进度条，减少MCP通道输出与开销
-            vectors = model.encode(texts, show_progress_bar=False)
+            self._log(f"Model ready in {(time.perf_counter()-t0):.2f}s")
+            # 分批编码，输出进度
+            vectors = self._encode_texts_with_progress(model, texts, batch_size=max(16, min(128, len(texts))))
             
             # 创建FAISS索引
-            print("正在创建向量索引...")
+            self._log("Building vector index...")
             dimension = int(vectors.shape[1])
             self.index = faiss.IndexFlatIP(dimension)
             
             # 标准化向量以便使用余弦相似度
+            t0 = time.perf_counter()
             vectors_float32 = vectors.astype(np.float32)
             faiss.normalize_L2(vectors_float32)
             # 兼容不同签名
             self._faiss_add(vectors_float32)
+            self._log(f"Index built in {(time.perf_counter()-t0):.2f}s")
             
             # 保存元数据
             self.metadata = [chunk['metadata'] for chunk in all_chunks]
             
             # 保存到文件
+            t0 = time.perf_counter()
             self._save_vector_db()
+            self._log(f"Vector DB saved in {(time.perf_counter()-t0):.2f}s")
             
-            print(f"向量化完成! 共处理 {len(all_chunks)} 个分片，向量维度: {dimension}")
+            self._log(f"Vectorization done! processed {len(all_chunks)} chunks, dim: {dimension}")
             return True
             
         except Exception as e:
-            print(f"处理数据时发生错误: {str(e)}")
+            self._log(f"Error during processing: {str(e)}")
+            # 记录错误并让调用方感知失败原因
+            self._last_error = str(e)
             return False
     
     def _save_vector_db(self):
@@ -233,10 +289,10 @@ class TAPDDataVectorizer:
             }
             self.file_manager.save_json_data(config, config_path)
             
-            print(f"向量数据库已保存到: {self.vector_db_path}")
+            self._log(f"Vector DB saved to: {self.vector_db_path}")
             
         except Exception as e:
-            print(f"保存向量数据库时发生错误: {str(e)}")
+            self._log(f"Error saving vector DB: {str(e)}")
     
     def load_vector_db(self) -> bool:
         """从文件加载向量数据库"""
@@ -244,7 +300,7 @@ class TAPDDataVectorizer:
             # 加载FAISS索引
             index_path = f"{self.vector_db_path}.index"
             if not os.path.exists(index_path):
-                print(f"向量索引文件不存在: {index_path}")
+                self._log(f"Vector index file not found: {index_path}")
                 return False
                 
             self.index = faiss.read_index(index_path)
@@ -252,7 +308,7 @@ class TAPDDataVectorizer:
             # 加载元数据
             metadata_path = f"{self.vector_db_path}.metadata.pkl"
             if not os.path.exists(metadata_path):
-                print(f"元数据文件不存在: {metadata_path}")
+                self._log(f"Metadata file not found: {metadata_path}")
                 return False
                 
             with open(metadata_path, 'rb') as f:
@@ -262,17 +318,15 @@ class TAPDDataVectorizer:
             config_path = f"{self.vector_db_path}.config.json"
             if os.path.exists(config_path):
                 try:
-                    config = self.file_manager.load_tapd_data(config_path)
-                    print(f"已加载向量数据库 - 模型: {config.get('model_name')}, "
-                          f"分片数: {config.get('chunk_count')}, "
-                          f"向量维度: {config.get('vector_dimension')}")
+                    config = self.file_manager.load_json_data(config_path)
+                    self._log(f"Vector DB loaded - model: {config.get('model_name')}, chunks: {config.get('chunk_count')}, dim: {config.get('vector_dimension')}")
                 except Exception as e:
-                    print(f"读取配置文件失败: {str(e)}")
+                    self._log(f"Failed to read config: {str(e)}")
             
             return True
             
         except Exception as e:
-            print(f"加载向量数据库时发生错误: {str(e)}")
+            self._log(f"Error loading vector DB: {str(e)}")
             return False
     
     def search_similar(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
@@ -317,7 +371,7 @@ class TAPDDataVectorizer:
             return results
             
         except Exception as e:
-            print(f"搜索时发生错误: {str(e)}")
+            self._log(f"Error during search: {str(e)}")
             return []
     
     def get_database_stats(self) -> Dict[str, Any]:
@@ -338,63 +392,182 @@ class TAPDDataVectorizer:
             return stats
             
         except Exception as e:
-            print(f"获取统计信息时发生错误: {str(e)}")
+            self._log(f"Error getting stats: {str(e)}")
             return {}
+
+    async def process_tapd_data_async(self, data_file_path: Optional[str] = None, chunk_size: int = 10) -> bool:
+        """
+        异步处理TAPD数据文件，进行向量化
+        
+        参数:
+            data_file_path: TAPD数据文件路径
+            chunk_size: 分片大小，每个分片包含的条目数
+            
+        返回:
+            bool: 处理是否成功
+        """
+        try:
+            # Read data (resolve path from project root; default to local_data/msg_from_fetcher.json)
+            project_root = self.config._get_project_root()  # 项目根目录
+            effective_path = data_file_path if (data_file_path and str(data_file_path).strip()) else os.path.join("local_data", "msg_from_fetcher.json")
+
+            # 相对路径按"项目根目录"为基准进行解析
+            if not os.path.isabs(effective_path):
+                effective_path = os.path.join(project_root, effective_path.lstrip("\\/"))
+
+            if not os.path.exists(effective_path):
+                # Raise with a clear hint for MCP error propagation
+                raise FileNotFoundError(f"Data file not found: {effective_path}")
+            self._log(f"Start async vectorization, data file: {effective_path}")
+            if chunk_size <= 0:
+                self._log(f"Warning: invalid chunk_size {chunk_size}, fallback to 10")
+                chunk_size = 10
+            # Read JSON by absolute path; avoid any special local_data-relative logic
+            t0 = time.perf_counter()
+            data = self.file_manager.load_json_data(effective_path)
+            self._log(f"Data file loaded in {(time.perf_counter()-t0):.2f}s")
+            
+            # 提取需求和缺陷数据
+            stories = data.get('stories', [])
+            bugs = data.get('bugs', [])
+            
+            self._log(f"Found {len(stories)} stories, {len(bugs)} bugs")
+            
+            # 分片处理数据
+            all_chunks = []
+            
+            if stories:
+                story_chunks = self._chunk_data(stories, "story", chunk_size)
+                all_chunks.extend(story_chunks)
+                self._log(f"Stories split into {len(story_chunks)} chunks")
+            
+            if bugs:
+                bug_chunks = self._chunk_data(bugs, "bug", chunk_size)
+                all_chunks.extend(bug_chunks)
+                self._log(f"Bugs split into {len(bug_chunks)} chunks")
+            
+            if not all_chunks:
+                self._log("Warning: no data to process")
+                self._last_error = "No stories or bugs in data"
+                return False
+            
+            # 向量化文本
+            self._log(f"Vectorizing {len(all_chunks)} text chunks...")
+            texts = [chunk['text'] for chunk in all_chunks]
+            
+            t0 = time.perf_counter()
+            self._log("Loading model asynchronously...")
+            # 异步获取模型，避免阻塞事件循环
+            model = await self._get_model_async()
+            self._log(f"Model ready in {(time.perf_counter()-t0):.2f}s")
+            # 分批编码，输出进度 - 需要在线程池中执行，因为编码是CPU密集型任务
+            vectors = await asyncio.to_thread(
+                self._encode_texts_with_progress, 
+                model, 
+                texts, 
+                max(16, min(128, len(texts)))
+            )
+            
+            # 创建FAISS索引 - 也需要在线程池中执行
+            self._log("Building vector index...")
+            dimension = int(vectors.shape[1])
+            self.index = faiss.IndexFlatIP(dimension)
+            
+            # 标准化向量以便使用余弦相似度
+            t0 = time.perf_counter()
+            vectors_float32 = vectors.astype(np.float32)
+            faiss.normalize_L2(vectors_float32)
+            # 兼容不同签名
+            self._faiss_add(vectors_float32)
+            self._log(f"Index built in {(time.perf_counter()-t0):.2f}s")
+            
+            # 保存元数据
+            self.metadata = [chunk['metadata'] for chunk in all_chunks]
+            
+            # 保存到文件 - 在线程池中执行I/O操作
+            t0 = time.perf_counter()
+            await asyncio.to_thread(self._save_vector_db)
+            self._log(f"Vector DB saved in {(time.perf_counter()-t0):.2f}s")
+            
+            self._log(f"Async vectorization done! processed {len(all_chunks)} chunks, dim: {dimension}")
+            return True
+            
+        except Exception as e:
+            self._log(f"Error during async processing: {str(e)}")
+            # 记录错误并让调用方感知失败原因
+            self._last_error = str(e)
+            return False
 
 
 # 以下是供MCP工具调用的函数
 
 async def vectorize_tapd_data(data_file_path: Optional[str] = None, chunk_size: int = 10) -> dict:
     """
-    向量化TAPD数据的主函数
+    Main function to vectorize TAPD data
     
     参数:
         data_file_path: 数据文件路径，默认为 local_data/msg_from_fetcher.json
         chunk_size: 分片大小，每个分片包含的条目数
         
     返回:
-        处理结果字典
+    Result dict
     """
     vectorizer = get_global_vectorizer()
     
     try:
-        success = vectorizer.process_tapd_data(data_file_path, chunk_size)
+        overall_t0 = time.perf_counter()
+        
+        # 优先使用异步版本，避免阻塞事件循环
+        try:
+            success = await vectorizer.process_tapd_data_async(data_file_path, chunk_size)
+        except AttributeError:
+            # 如果异步版本不存在，回退到线程池版本
+            success = await asyncio.to_thread(vectorizer.process_tapd_data, data_file_path, chunk_size)
         
         if success:
             stats = vectorizer.get_database_stats()
             return {
                 "status": "success",
-                "message": "TAPD数据向量化完成",
+                "message": "Vectorization completed",
                 "stats": stats,
-                "vector_db_path": vectorizer.vector_db_path
+                "vector_db_path": vectorizer.vector_db_path,
+                "data_file_path": data_file_path or "local_data/msg_from_fetcher.json",
+                "elapsed_seconds": round(time.perf_counter() - overall_t0, 2)
             }
         else:
+            # 优先返回内部记录的错误信息
+            detail = getattr(vectorizer, "_last_error", "Unknown error")
             return {
                 "status": "error",
-                "message": "TAPD数据向量化失败"
+                "message": "Vectorization failed",
+                "details": str(detail),
+                "data_file_path": data_file_path or "local_data/msg_from_fetcher.json",
+                "elapsed_seconds": round(time.perf_counter() - overall_t0, 2)
             }
     except FileNotFoundError as e:
         return {
             "status": "error",
-            "message": f"数据文件不存在: {str(e)}"
+            "message": f"Data file not found: {str(e)}",
+            "data_file_path": data_file_path or "local_data/msg_from_fetcher.json"
         }
     except Exception as e:
         return {
             "status": "error",
-            "message": f"向量化过程发生错误: {str(e)}"
+            "message": f"Error during vectorization: {str(e)}",
+            "data_file_path": data_file_path or "local_data/msg_from_fetcher.json"
         }
 
 
 async def search_tapd_data(query: str, top_k: int = 5) -> dict:
     """
-    在向量化的TAPD数据中搜索相关内容
+    Search related content in vectorized TAPD data
     
     参数:
         query: 搜索查询
         top_k: 返回最相似的K个结果
         
     返回:
-        搜索结果字典
+    Result dict
     """
     vectorizer = get_global_vectorizer()
 
@@ -403,7 +576,7 @@ async def search_tapd_data(query: str, top_k: int = 5) -> dict:
         if not query or not str(query).strip():
             return {
                 "status": "error",
-                "message": "查询内容为空"
+                "message": "Query is empty"
             }
 
         # 限制每批返回的条目数（items per batch），避免过大带来IO与序列化开销
@@ -435,7 +608,7 @@ async def search_tapd_data(query: str, top_k: int = 5) -> dict:
 
             return {
                 "status": "success",
-                "message": f"返回前{len(formatted_results)}批结果，每批 {items_per_batch} 条",
+                "message": f"Returned top {len(formatted_results)} batches, {items_per_batch} items per batch",
                 "query": query,
                 "batches": len(formatted_results),
                 "items_per_batch": items_per_batch,
@@ -444,21 +617,21 @@ async def search_tapd_data(query: str, top_k: int = 5) -> dict:
         else:
             return {
                 "status": "error",
-                "message": "搜索失败或未找到相关结果"
+                "message": "Search failed or no results found"
             }
     except Exception as e:
         return {
             "status": "error",
-            "message": f"搜索过程发生错误: {str(e)}"
+            "message": f"Error during search: {str(e)}"
         }
 
 
 async def get_vector_db_info() -> dict:
     """
-    获取向量数据库信息
+    Get vector database info
     
     返回:
-        数据库信息字典
+    Database info dict
     """
     vectorizer = get_global_vectorizer()
     
@@ -468,7 +641,7 @@ async def get_vector_db_info() -> dict:
         if not os.path.exists(index_path):
             return {
                 "status": "not_found",
-                "message": "向量数据库不存在，请先运行向量化操作"
+                "message": "Vector DB not found; run vectorization first"
             }
         
         stats = vectorizer.get_database_stats()
@@ -476,19 +649,19 @@ async def get_vector_db_info() -> dict:
         if stats:
             return {
                 "status": "ready",
-                "message": "向量数据库已就绪",
+                "message": "Vector DB is ready",
                 "stats": stats,
                 "database_path": vectorizer.vector_db_path
             }
         else:
             return {
                 "status": "error",
-                "message": "无法获取数据库信息"
+                "message": "Unable to get database info"
             }
     except Exception as e:
         return {
             "status": "error",
-            "message": f"获取向量数据库信息失败: {str(e)}"
+            "message": f"Failed to get vector DB info: {str(e)}"
         }
 
 
@@ -499,8 +672,8 @@ def get_global_vectorizer() -> TAPDDataVectorizer:
     global _GLOBAL_VECTORIZER
     if _GLOBAL_VECTORIZER is None:
         _GLOBAL_VECTORIZER = TAPDDataVectorizer()
-        # 尝试预加载索引，若不存在则按需加载
-        _GLOBAL_VECTORIZER.load_vector_db()
+        # 不在导入时预加载索引，避免 MCP 启动时的潜在问题
+        # _GLOBAL_VECTORIZER.load_vector_db()
     return _GLOBAL_VECTORIZER
 
 
@@ -517,7 +690,7 @@ if __name__ == "__main__":
 
     # vectorize 子命令：执行向量化
     p_vec = subparsers.add_parser("vectorize", help="执行TAPD数据向量化")
-    p_vec.add_argument("--file", "-f", dest="data_file_path", default=None, help="数据文件路径，默认使用 local_data/msg_from_fetcher.json")
+    p_vec.add_argument("--file", "-f", dest="data_file_path", default="local_data/msg_from_fetcher.json", help="数据文件路径，默认使用 local_data/msg_from_fetcher.json（相对路径按项目根目录解析）")
     p_vec.add_argument("--chunk", "-c", dest="chunk_size", type=int, default=10, help="分片大小，默认10")
 
     # search 子命令：语义搜索
@@ -533,11 +706,11 @@ if __name__ == "__main__":
             print(json.dumps(res, ensure_ascii=False, indent=2))
         elif args.command == "search":
             res = await search_tapd_data(query=args.query, top_k=args.topk)
-            print(json.dumps(res, ensure_ascii=False, indent=2))
+            print(json.dumps(res, ensure_ascii=False, indent=2), file=sys.stderr)
         else:
             # 默认展示 info
             res = await get_vector_db_info()
-            print(json.dumps(res, ensure_ascii=False, indent=2))
+            print(json.dumps(res, ensure_ascii=False, indent=2), file=sys.stderr)
 
     try:
         asyncio.run(_main())

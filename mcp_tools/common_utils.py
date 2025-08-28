@@ -5,6 +5,7 @@ MCP工具公共工具模块
 """
 
 import os
+import sys
 import json
 import aiohttp
 from pathlib import Path
@@ -13,6 +14,7 @@ import asyncio
 import re
 import uuid
 import pandas as pd
+from contextlib import redirect_stdout, contextmanager
 
 # SiliconFlow 默认模型（可通过环境变量 SF_MODEL 覆盖）
 # 若要查看可用的模型，请前往 https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions
@@ -40,18 +42,30 @@ class MCPToolsConfig:
     
     def get_data_file_path(self, relative_path: str = "msg_from_fetcher.json") -> str:
         """
-        获取数据文件的绝对路径
-        
-        参数:
-            relative_path: 相对路径，如果以 'local_data/' 开头，则直接使用；
-                          否则假设是相对于 local_data 目录的路径
+        获取数据文件的绝对路径，兼容以下输入：
+        - 绝对路径（直接返回）
+        - 相对项目根目录路径：以 'local_data/' 或 'local_data\\' 开头
+        - 相对数据目录路径：传入文件名或子目录（例如 'msg_from_fetcher.json' 或 'time_trend/report.json'）
+        - Windows 下使用反斜杠的路径（自动规范化）
         """
-        if relative_path.startswith('local_data/'):
-            # 相对于项目根目录的路径
-            return str(self.project_root / relative_path)
+        # 显式传入空字符串：表示请求 local_data 目录路径
+        if isinstance(relative_path, str) and relative_path.strip() == "":
+            return str(self.local_data_path)
+
+        # 若已是绝对路径，直接返回
+        p = Path(relative_path)
+        if p.is_absolute():
+            return str(p)
+
+        # 统一分隔符并标准化路径
+        norm = str(relative_path).replace("\\", "/").lstrip("/\\")
+
+        if norm.startswith("local_data/"):
+            # 形如 local_data/xxx 的路径：相对于项目根目录
+            return str(self.project_root / norm)
         else:
-            # 相对于 local_data 目录的路径
-            return str(self.local_data_path / relative_path)
+            # 其他情况：相对于 local_data 目录
+            return str(self.local_data_path / norm)
     
     def get_vector_db_path(self, name: str = "data_vector") -> str:
         """获取向量数据库路径"""
@@ -207,7 +221,11 @@ class APIManager:
         headers = {}
         text = ""
 
-        print(f"API调用参数: endpoint={use_endpoint}, model={use_model}, max_tokens={max_tokens}")
+        print(
+            f"[API] call params: endpoint={use_endpoint}, model={use_model}, max_tokens={max_tokens}",
+            file=sys.stderr,
+            flush=True,
+        )
 
         if is_siliconflow:
             # 硅基流动API配置
@@ -364,25 +382,26 @@ class ModelManager:
         model_dir = self.config.models_path / f"models--sentence-transformers--{model_name}"
         
         if not model_dir.exists():
-            print(f"本地模型目录不存在: {model_dir}")
+            print(f"本地模型目录不存在: {model_dir}", file=sys.stderr, flush=True)
             return None
         
         # 查找快照目录
         snapshots_dir = model_dir / "snapshots"
         if not snapshots_dir.exists():
-            print(f"快照目录不存在: {snapshots_dir}")
+            print(f"快照目录不存在: {snapshots_dir}", file=sys.stderr, flush=True)
             return None
         
         # 获取所有快照目录
         snapshot_dirs = list(snapshots_dir.glob("*"))
         if not snapshot_dirs:
-            print(f"未找到模型快照: {snapshots_dir}")
+            print(f"未找到模型快照: {snapshots_dir}", file=sys.stderr, flush=True)
             return None
         
-        # 选择最新的快照（按修改时间排序）
+    # 选择最新的快照（按修改时间排序）
         latest_snapshot = max(snapshot_dirs, key=lambda d: d.stat().st_mtime)
-        print(f"找到本地模型: {latest_snapshot}")
-        return str(latest_snapshot)
+        print(f"找到本地模型: {latest_snapshot}", file=sys.stderr, flush=True)
+        # 转换为字符串并标准化路径分隔符，确保跨平台兼容性
+        return str(latest_snapshot).replace('\\', '/')
     
     def get_model(self, model_name: str = "paraphrase-MiniLM-L6-v2") -> Any:
         """
@@ -396,38 +415,135 @@ class ModelManager:
         """
         if (ModelManager._shared_model is None or 
             ModelManager._model_name_cache != model_name):
-            
-            print(f"正在加载向量化模型: {model_name}")
+
+            # 降噪：抑制第三方库在加载模型时的 INFO 输出，并确保输出到 stderr
+            try:
+                import logging
+                for _name in ("sentence_transformers", "transformers"):
+                    _logger = logging.getLogger(_name)
+                    _logger.setLevel(logging.WARNING)
+                    # 绑定到 stderr，避免默认 handler 输出到 stdout 的风险
+                    if not _logger.handlers:
+                        _h = logging.StreamHandler(sys.stderr)
+                        _h.setLevel(logging.WARNING)
+                        _logger.addHandler(_h)
+                    # 避免向 root 传播，防止其他 handler 将其导向 stdout
+                    _logger.propagate = False
+            except Exception:
+                pass
+
+            print(f"正在加载向量化模型: {model_name}", file=sys.stderr, flush=True)
+
+            # 降噪：进一步通过环境变量抑制 transformers/hf-hub 的详细日志与警告
+            os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+            os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+            os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
             
             # 尝试使用项目本地模型
             local_model_path = self.get_project_model_path(model_name)
             
             if local_model_path:
-                print(f"使用本地模型: {local_model_path}")
+                print(f"使用本地模型: {local_model_path}", file=sys.stderr, flush=True)
                 # 延迟导入，避免在模块导入阶段引入重依赖
                 from sentence_transformers import SentenceTransformer
-                ModelManager._shared_model = SentenceTransformer(local_model_path)
-                print("本地模型加载完成")
-            else:
-                print(f"本地模型不存在，将下载到：{self.config.models_path / model_name}")
-                print("注意：首次运行需要VPN访问HuggingFace下载模型...")
                 
-                # 设置缓存目录到项目本地
-                cache_dir = str(self.config.models_path)
+                # 使用 devnull 来静默加载，避免在 MCP Inspector 环境下的 stdout 重定向问题
+                import io
+                import contextlib
+                
+                with contextlib.redirect_stdout(io.StringIO()):
+                    ModelManager._shared_model = SentenceTransformer(local_model_path)
+                    
+                print("本地模型加载完成", file=sys.stderr, flush=True)
+            else:
+                print(f"本地模型不存在，将下载到：{self.config.models_path / model_name}", file=sys.stderr, flush=True)
+                print("注意：首次运行需要VPN访问HuggingFace下载模型...", file=sys.stderr, flush=True)
+                
+                # 设置缓存目录到项目本地，标准化路径分隔符
+                cache_dir = str(self.config.models_path).replace('\\', '/')
                 os.environ['TRANSFORMERS_CACHE'] = cache_dir
                 os.environ['HF_HOME'] = cache_dir
                 
                 from sentence_transformers import SentenceTransformer
-                ModelManager._shared_model = SentenceTransformer(
-                    model_name, 
-                    cache_folder=cache_dir
-                )
-                print(f"模型已下载并保存到：{self.config.models_path / model_name}")
+                
+                # 使用 devnull 来静默加载，避免在 MCP Inspector 环境下的 stdout 重定向问题
+                import io
+                import contextlib
+                
+                with contextlib.redirect_stdout(io.StringIO()):
+                    ModelManager._shared_model = SentenceTransformer(
+                        model_name, 
+                        cache_folder=cache_dir
+                    )
+                    
+                print(f"模型已下载并保存到：{self.config.models_path / model_name}", file=sys.stderr, flush=True)
             
             ModelManager._model_name_cache = model_name
-            print("模型加载完成")
+            print("模型加载完成", file=sys.stderr, flush=True)
         
         return ModelManager._shared_model
+    
+    async def get_model_async(self, model_name: str = "paraphrase-MiniLM-L6-v2") -> Any:
+        """
+        异步获取模型实例，避免阻塞事件循环
+        
+        参数:
+            model_name: 模型名称
+            
+        返回:
+            SentenceTransformer: 模型实例
+        """
+        # 如果模型已经加载且名称匹配，直接返回
+        if (ModelManager._shared_model is not None and 
+            ModelManager._model_name_cache == model_name):
+            return ModelManager._shared_model
+        
+        # 使用线程池异步加载模型，避免阻塞事件循环
+        import asyncio
+        return await asyncio.to_thread(self.get_model, model_name)
+    
+    def is_model_loaded(self, model_name: str = "paraphrase-MiniLM-L6-v2") -> bool:
+        """
+        检查模型是否已经加载到内存中
+        
+        参数:
+            model_name: 模型名称
+            
+        返回:
+            bool: 如果模型已加载则返回True
+        """
+        return (ModelManager._shared_model is not None and 
+                ModelManager._model_name_cache == model_name)
+    
+    async def warm_up_model(self, model_name: str = "paraphrase-MiniLM-L6-v2") -> bool:
+        """
+        预热模型 - 在后台异步加载模型，避免在实际使用时阻塞
+        
+        参数:
+            model_name: 要预热的模型名称
+            
+        返回:
+            bool: 预热成功返回True，失败返回False
+        """
+        if self.is_model_loaded(model_name):
+            print(f"模型 {model_name} 已经加载，跳过预热", file=sys.stderr, flush=True)
+            return True
+        
+        try:
+            print(f"开始预热模型: {model_name}...", file=sys.stderr, flush=True)
+            import time
+            start_time = time.time()
+            
+            # 使用异步方式加载模型
+            await self.get_model_async(model_name)
+            
+            elapsed = time.time() - start_time
+            print(f"模型预热完成，耗时: {elapsed:.2f}秒", file=sys.stderr, flush=True)
+            return True
+            
+        except Exception as e:
+            print(f"模型预热失败: {e}", file=sys.stderr, flush=True)
+            return False
     
     @classmethod
     def clear_cache(cls):
@@ -577,7 +693,7 @@ class FileManager:
             with open(file_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError) as e:
-            print(f"加载JSON文件失败: {file_path}, 错误: {str(e)}")
+            print(f"[FileManager] Failed to load JSON: {file_path} — {e}", file=sys.stderr, flush=True)
             return {}
 
     def save_json_data(self, data: Dict[str, Any], file_path: str):
@@ -687,7 +803,7 @@ class TransmissionManager:
             existing["retries"] = arr
             self.fm.save_json_data(existing, self.retry_log_path)
         except Exception as e:
-            print(f"[Transmission] 写入重试日志失败: {e}")
+            print(f"[Transmission] Failed to write retry log: {e}", file=sys.stderr, flush=True)
 
     def update_stats(self, success: bool, retries: int = 0):
         self.stats["total_chunks"] += 1
@@ -706,7 +822,7 @@ class TransmissionManager:
         try:
             self.fm.save_json_data(report, self.report_path)
         except Exception as e:
-            print(f"[Transmission] 写入传输报告失败: {e}")
+            print(f"[Transmission] Failed to write transmission report: {e}", file=sys.stderr, flush=True)
         report["report_path"] = self.report_path
         return report
 
@@ -724,25 +840,37 @@ class TokenCounter:
         try:
             # 尝试使用transformers库加载tokenizer
             import transformers
-            
+
             tokenizer_path = self.config.models_path / "deepseek_v3_tokenizer" / "deepseek_v3_tokenizer"
-            
+
             if tokenizer_path.exists():
                 self.tokenizer = transformers.AutoTokenizer.from_pretrained(
-                    str(tokenizer_path), 
-                    trust_remote_code=True
+                    str(tokenizer_path),
+                    trust_remote_code=True,
                 )
-                print("已加载DeepSeek tokenizer（transformers），将使用精确token计数")
+                print(
+                    "[TokenCounter] Loaded DeepSeek tokenizer (transformers); using exact token counting",
+                    file=sys.stderr,
+                    flush=True,
+                )
                 return
             else:
-                print(f"DeepSeek tokenizer路径不存在: {tokenizer_path}")
-                
+                print(
+                    f"[TokenCounter] Tokenizer path not found: {tokenizer_path}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+
         except ImportError as e:
-            print(f"transformers库未安装: {e}")
+            print(f"[TokenCounter] transformers not installed: {e}", file=sys.stderr, flush=True)
         except Exception as e:
-            print(f"加载DeepSeek tokenizer失败: {e}")
-        
-        print("将使用改进的预估模式进行token计数")
+            print(f"[TokenCounter] Failed to load DeepSeek tokenizer: {e}", file=sys.stderr, flush=True)
+
+        print(
+            "[TokenCounter] Fallback to improved estimation mode for token counting",
+            file=sys.stderr,
+            flush=True,
+        )
         self.tokenizer = None
     
     def count_tokens(self, text: str) -> int:
@@ -760,7 +888,7 @@ class TokenCounter:
                 tokens = self.tokenizer.encode(text)
                 return len(tokens)
             except Exception as e:
-                print(f"使用tokenizer计数失败: {e}，转为预估模式")
+                print(f"[TokenCounter] Tokenizer count failed: {e}; falling back to estimation", file=sys.stderr, flush=True)
         
         # 改进的预估模式：基于测试结果优化参数
         # 测试结果显示：
@@ -1006,3 +1134,46 @@ def get_token_counter() -> TokenCounter:
     if _global_token_counter is None:
         _global_token_counter = TokenCounter(get_config())
     return _global_token_counter
+
+
+# 进程级（FD级）stdout→stderr 重定向，阻断C层/多线程对stdout的写入污染
+@contextmanager
+def redirect_stdout_fd_to_stderr():
+    """
+    Temporarily redirect file descriptor 1 (stdout) to file descriptor 2 (stderr).
+    This catches C-level and multi-threaded writes that bypass Python's sys.stdout.
+    """
+    old_out_fd = -1
+    try:
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        except Exception:
+            pass
+        try:
+            old_out_fd = os.dup(1)
+            try:
+                os.dup2(2, 1)  # stdout -> stderr
+            except Exception:
+                # Windows fallback: if dup2 fails for some reason, redirect to NUL to be safe
+                try:
+                    nul_path = os.devnull if hasattr(os, 'devnull') else 'NUL'
+                    nul_fd = os.open(nul_path, os.O_WRONLY)
+                    os.dup2(nul_fd, 1)
+                    os.close(nul_fd)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        yield
+    finally:
+        try:
+            sys.stdout.flush()
+        except Exception:
+            pass
+        try:
+            if old_out_fd != -1:
+                os.dup2(old_out_fd, 1)
+                os.close(old_out_fd)
+        except Exception:
+            pass

@@ -1,9 +1,27 @@
-from typing import Any, Optional
+from typing import Any, Optional, Literal
 import json
 import asyncio
 import os
+import sys
 from datetime import datetime
+import logging
 from mcp.server.fastmcp import FastMCP
+
+# 严格模式：将所有 stderr 重定向到本地日志文件，避免与 MCP stdio 冲突
+_original_stdout = sys.stdout  # 保存原始 stdout 供 MCP 使用
+try:
+    os.makedirs(os.path.join('local_data', 'logs'), exist_ok=True)
+    _stderr_path = os.path.join('local_data', 'logs', 'mcp_server.stderr.log')
+    _stderr_fp = open(_stderr_path, 'a', encoding='utf-8', buffering=1)
+    sys.stderr = _stderr_fp  # type: ignore[assignment]
+    
+    # 同时重定向 stdout 到 stderr，防止任何意外的 stdout 输出污染 MCP 协议
+    sys.stdout = _stderr_fp  # type: ignore[assignment]
+except Exception:
+    # 即使日志文件创建失败，也不要中断服务器启动
+    pass
+
+# 在 stderr 重定向之后导入模块，避免导入时的输出污染 stdout
 from tapd_data_fetcher import get_story_msg, get_bug_msg    # 从tapd_data_fetcher模块导入获取需求和缺陷数据的函数
 from mcp_tools.example_tool import example_function    # 从mcp_tools.example_tool模块导入示例工具函数
 from mcp_tools.data_vectorizer import vectorize_tapd_data, search_tapd_data, get_vector_db_info    # 导入优化后的向量化工具
@@ -15,11 +33,31 @@ from mcp_tools.data_preprocessor import preprocess_description_field, preview_de
 from mcp_tools.knowledge_base import enhance_tapd_data_with_knowledge    # 导入数据增强工具
 from mcp_tools.time_trend_analyzer import analyze_time_trends as analyze_trends    # 导入时间趋势分析工具
 
+# 全局日志与环境降噪：确保第三方库不会向 stdout 打印，避免破坏 MCP stdio
+logging.basicConfig(level=logging.WARNING, stream=sys.stderr, force=True)
+for _name, _level in (
+    ("sentence_transformers", logging.ERROR),
+    ("transformers", logging.ERROR),
+    ("torch", logging.ERROR),
+    ("faiss", logging.ERROR),
+    ("urllib3", logging.ERROR),
+):
+    try:
+        _lg = logging.getLogger(_name)
+        _lg.setLevel(_level)
+        if not _lg.handlers:
+            _h = logging.StreamHandler(sys.stderr)
+            _h.setLevel(_level)
+            _lg.addHandler(_h)
+        _lg.propagate = False
+    except Exception:
+        pass
+
 # 初始化MCP服务器
 mcp = FastMCP("tapd")
 
 @mcp.tool()
-async def example_tool(param1: str, param2: int) -> dict:
+async def example_tool(param1: str = "success", param2: int = 57257) -> dict:
     """
     示例工具函数（用于演示MCP工具注册方式）
     
@@ -66,23 +104,23 @@ async def get_tapd_data() -> str:
         - 为离线分析准备数据
     """
     try:
-        print('===== 开始获取需求数据 =====')
+        print('===== Start fetching stories =====', file=sys.stderr, flush=True)
         stories_data = await get_story_msg()
-        
-        print('===== 开始获取缺陷数据 =====')
+
+        print('===== Start fetching bugs =====', file=sys.stderr, flush=True)
         bugs_data = await get_bug_msg()
-        
+
         # 准备要保存的数据
         data_to_save = {
             'stories': stories_data,
             'bugs': bugs_data
         }
-        
+
         # 确保目录存在并保存数据
         os.makedirs('local_data', exist_ok=True)
         with open(os.path.join('local_data', 'msg_from_fetcher.json'), 'w', encoding='utf-8') as f:
             json.dump(data_to_save, f, ensure_ascii=False, indent=4)
-        
+
         # 返回统计结果
         result = {
             "status": "success",
@@ -94,9 +132,9 @@ async def get_tapd_data() -> str:
             },
             "file_path": "local_data/msg_from_fetcher.json"
         }
-        
+
         return json.dumps(result, ensure_ascii=False, indent=2)
-        
+
     except Exception as e:
         error_result = {
             "status": "error",
@@ -153,7 +191,11 @@ async def get_tapd_bugs() -> str:
         return f"获取缺陷数据失败：{str(e)}"
 
 @mcp.tool()
-async def vectorize_data(data_file_path: Optional[str] = None, chunk_size: int = 10) -> str:
+async def vectorize_data(
+    data_file_path: Optional[str] = "local_data/msg_from_fetcher.json",
+    chunk_size: int = 10,
+    timeout_seconds: int = 600
+) -> str:
     """向量化TAPD数据以支持大批量数据处理
     
     功能描述:
@@ -177,12 +219,162 @@ async def vectorize_data(data_file_path: Optional[str] = None, chunk_size: int =
         - 为后续的智能搜索和相似度匹配做准备
     """
     try:
-        result = await vectorize_tapd_data(data_file_path, chunk_size)
+        # normalize inputs
+        effective_path = data_file_path if (data_file_path and str(data_file_path).strip()) else "local_data/msg_from_fetcher.json"
+        safe_chunk = chunk_size if isinstance(chunk_size, int) and chunk_size > 0 else 10
+        safe_timeout = max(0, int(timeout_seconds)) if isinstance(timeout_seconds, int) else 600
+
+        print(
+            f"[MCP {datetime.now().strftime('%H:%M:%S')}] vectorize_data start, file={effective_path}, chunk_size={safe_chunk}, timeout={safe_timeout or 'no'}s",
+            file=sys.stderr,
+            flush=True,
+        )
+
+        # Force same-thread execution for MCP Inspector compatibility; subprocess has stderr redirection issues
+        use_subprocess = os.getenv("VEC_USE_SUBPROCESS", "0").strip() in ("1", "true", "True")
+
+        if not use_subprocess:
+            # Use more aggressive timeout for MCP Inspector compatibility
+            effective_timeout = min(safe_timeout, 60) if safe_timeout > 0 else 60
+            try:
+                async def _do_vectorize():
+                    return await vectorize_tapd_data(effective_path, safe_chunk)
+
+                result = await asyncio.wait_for(_do_vectorize(), timeout=effective_timeout)
+            except asyncio.TimeoutError:
+                print(
+                    f"[MCP {datetime.now().strftime('%H:%M:%S')}] vectorize_data timeout (> {effective_timeout}s)",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                result = {
+                    "status": "error",
+                    "message": f"Vectorization timeout after {effective_timeout}s, try again later or reduce chunk_size",
+                    "data_file_path": effective_path,
+                    "timeout_seconds": effective_timeout,
+                }
+            except Exception as e:
+                result = {"status": "error", "message": f"Vectorization failed: {e}"}
+        else:
+            py_exe = sys.executable or "python"
+            cmd = [py_exe, "-m", "mcp_tools.vec_worker", "--file", effective_path, "--chunk", str(safe_chunk)]
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                try:
+                    if safe_timeout > 0:
+                        stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=safe_timeout)
+                    else:
+                        stdout_bytes, stderr_bytes = await proc.communicate()
+                except asyncio.TimeoutError:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                    print(
+                        f"[MCP {datetime.now().strftime('%H:%M:%S')}] vectorize_data timeout (>{safe_timeout}s)",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    result = {
+                        "status": "error",
+                        "message": "Vectorization timeout, try again later or reduce chunk_size",
+                        "data_file_path": effective_path,
+                        "timeout_seconds": safe_timeout,
+                    }
+                else:
+                    if stderr_bytes:
+                        try:
+                            sys.stderr.write(stderr_bytes.decode(errors="replace"))
+                            sys.stderr.flush()
+                        except Exception:
+                            pass
+                    code = proc.returncode
+                    text = (stdout_bytes or b"").decode(errors="replace").strip()
+                    if code != 0:
+                        result = {"status": "error", "message": f"Worker exit code {code}", "raw": text[:4000]}
+                    elif not text:
+                        result = {"status": "error", "message": "Worker produced no output"}
+                    else:
+                        try:
+                            result = json.loads(text)
+                        except Exception as e:
+                            result = {"status": "error", "message": f"Invalid worker output: {e}", "raw": text[:4000]}
+            except FileNotFoundError as e:
+                result = {"status": "error", "message": f"Python executable not found: {e}"}
+            except Exception as e:
+                result = {"status": "error", "message": f"Failed to run worker: {e}"}
+
+        # normalize response shape and message
+        if isinstance(result, str):
+            try:
+                result = json.loads(result)
+            except Exception:
+                result = {"status": "error", "message": "Invalid result payload"}
+
+        if isinstance(result, dict):
+            res: dict[str, Any] = dict(result)
+            res.setdefault("data_file_path", effective_path)
+            if res.get("status") == "success":
+                # ensure success message and attach vector DB readiness info (best-effort)
+                res["message"] = res.get("message") or "Vectorization completed"
+                try:
+                    info = await get_vector_db_info()
+                    status_val = info.get("status")
+                    if status_val is not None:
+                        res["vector_db_status"] = str(status_val)
+                    db_stats = info.get("stats")
+                    if db_stats is not None and res.get("stats") is None:
+                        if isinstance(db_stats, dict):
+                            res["stats"] = db_stats  # type: ignore[assignment]
+                except Exception:
+                    pass
+            result = res
+
+        print(
+            f"[MCP {datetime.now().strftime('%H:%M:%S')}] vectorize_data end, status={result.get('status') if isinstance(result, dict) else 'unknown'}",
+            file=sys.stderr,
+            flush=True,
+        )
+        
+        # Ensure MCP Inspector compatibility by returning a structured response
+        if isinstance(result, dict) and result.get("status") == "success":
+            # Extract stats for display (check both direct keys and nested stats)
+            stats = result.get("stats", {})
+            chunks_count = result.get("chunks", stats.get("total_chunks", "?"))
+            vector_dim = result.get("dim", stats.get("vector_dimension", "?"))
+            total_items = result.get("total_items", stats.get("total_items", "?"))
+            elapsed_time = result.get("elapsed_time", result.get("elapsed_seconds", "?"))
+            
+            # Add user-friendly status message for MCP Inspector
+            display_message = "✅ 向量化成功完成!\n\n"
+            if chunks_count != "?":
+                display_message += f"📦 处理分片数: {chunks_count}\n"
+            if vector_dim != "?":
+                display_message += f"🔢 向量维度: {vector_dim}\n"
+            if total_items != "?":
+                display_message += f"📄 总项目数: {total_items}\n"
+            if elapsed_time != "?":
+                display_message += f"⏱️ 耗时: {elapsed_time}秒\n"
+            
+            # Create structured response that MCP Inspector can display
+            mcp_result = {
+                "status": "success",
+                "message": display_message.strip(),
+                "details": result,
+                "summary": f"向量化完成 - {chunks_count}个分片, {vector_dim}维向量"
+            }
+            return json.dumps(mcp_result, ensure_ascii=False, indent=2)
+        
         return json.dumps(result, ensure_ascii=False, indent=2)
     except Exception as e:
+        print(f"[MCP {datetime.now().strftime('%H:%M:%S')}] vectorize_data exception: {e}", file=sys.stderr, flush=True)
         error_result = {
             "status": "error",
-            "message": f"向量化失败：{str(e)}"
+            "message": f"Vectorization failed: {str(e)}"
         }
         return json.dumps(error_result, ensure_ascii=False, indent=2)
 
@@ -368,15 +560,15 @@ async def generate_tapd_overview(
         
         # 根据参数选择数据源并直接获取筛选后的数据
         if use_local_data:
-            print(f"[本地数据] 使用本地数据文件进行分析，时间范围：{since} 到 {until}")
+            print(f"[本地数据] 使用本地数据文件进行分析，时间范围：{since} 到 {until}", file=sys.stderr, flush=True)
             stories_data = await get_local_story_msg_filtered(since, until)
             bugs_data = await get_local_bug_msg_filtered(since, until)
         else:
-            print(f"[API数据] 从TAPD API获取最新数据进行分析，时间范围：{since} 到 {until}")
+            print(f"[API数据] 从TAPD API获取最新数据进行分析，时间范围：{since} 到 {until}", file=sys.stderr, flush=True)
             stories_data = await get_story_msg_filtered(since, until)
             bugs_data = await get_bug_msg_filtered(since, until)
         
-        print(f"[数据加载] 数据加载完成：{len(stories_data)} 条需求，{len(bugs_data)} 条缺陷")
+        print(f"[数据加载] 数据加载完成：{len(stories_data)} 条需求，{len(bugs_data)} 条缺陷", file=sys.stderr, flush=True)
         
         # 包装获取函数以适配context_optimizer的接口
         async def fetch_story(**params):
@@ -386,10 +578,10 @@ async def generate_tapd_overview(
         async def fetch_bug(**params):
             # 直接返回已筛选的数据，无需分页处理
             return bugs_data
-        
-        print(f"[AI分析] 开始调用AI生成智能概览分析...")
-        print("[处理中] 正在处理数据并生成质量分析报告，预计需要10-20秒...")
-        print(f"[可靠传输] ACK模式: {ack_mode}，重试次数: {max_retries}，回退: {retry_backoff}，分块大小: {chunk_size or '自动'}")
+
+        print(f"[AI分析] 开始调用AI生成智能概览分析...", file=sys.stderr, flush=True)
+        print("[处理中] 正在处理数据并生成质量分析报告，预计需要10-20秒...", file=sys.stderr, flush=True)
+        print(f"[可靠传输] ACK模式: {ack_mode}，重试次数: {max_retries}，回退: {retry_backoff}，分块大小: {chunk_size or '自动'}", file=sys.stderr, flush=True)
         
         # 调用上下文优化器
         overview = await build_overview(
@@ -403,8 +595,8 @@ async def generate_tapd_overview(
             retry_backoff=retry_backoff,
             chunk_size=chunk_size
         )
-        
-        print("[分析完成] AI分析完成，正在整理输出结果...")
+
+        print("[分析完成] AI分析完成，正在整理输出结果...", file=sys.stderr, flush=True)
         
         # 检查摘要是否包含错误信息
         summary_text = overview.get("summary_text", "")
@@ -671,11 +863,11 @@ async def enhance_tapd_with_knowledge(
 
 @mcp.tool()
 async def analyze_time_trends(
-    data_type: str = "story",
-    chart_type: str = "count",
+    data_type: Literal['story', 'bug'] = "story",
+    chart_type: Literal['count', 'priority', 'status'] = "count",
     time_field: str = "created",
-    since: str = None,
-    until: str = None,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
     data_file_path: str = "local_data/msg_from_fetcher.json"
 ) -> str:
     """
@@ -731,6 +923,37 @@ async def analyze_time_trends(
 
 
 if __name__ == "__main__":
+    # 在启动 MCP 服务器之前恢复 stdout，因为 MCP 需要通过 stdout 进行 JSON-RPC 通信
+    sys.stdout = _original_stdout
+
+    # 模型预热 - 在后台异步加载模型以避免工具调用时阻塞
+    async def warm_up_models():
+        """预热模型，避免在MCP Inspector中首次调用时超时"""
+        try:
+            print("🔥 开始预热向量化模型...", file=sys.stderr, flush=True)
+            from mcp_tools.common_utils import get_model_manager
+            model_manager = get_model_manager()
+            success = await model_manager.warm_up_model("paraphrase-MiniLM-L6-v2")
+            if success:
+                print("🎉 模型预热完成，MCP Inspector可流畅使用向量化功能", file=sys.stderr, flush=True)
+            else:
+                print("⚠️ 模型预热失败，首次使用时可能较慢", file=sys.stderr, flush=True)
+        except Exception as e:
+            print(f"❌ 模型预热异常: {e}", file=sys.stderr, flush=True)
+    
+    # 启动预热任务
+    try:
+        import asyncio
+        print("🚀 启动MCP服务器...", file=sys.stderr, flush=True)
+        
+        # 创建事件循环并预热模型
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(warm_up_models())
+        loop.close()
+        
+    except Exception as e:
+        print(f"⚠️ 预热过程出现问题，继续启动服务器: {e}", file=sys.stderr, flush=True)
 
     # 启动MCP服务器（使用标准输入输出传输）
     mcp.run(transport='stdio')

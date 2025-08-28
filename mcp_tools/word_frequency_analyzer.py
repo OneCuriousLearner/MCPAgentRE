@@ -10,7 +10,13 @@ from collections import Counter
 from typing import Dict, List, Tuple, Any
 import jieba
 import os
-from .common_utils import get_config, get_file_manager
+# 兼容导入：既支持作为包导入，也支持脚本直接运行
+try:
+    from .common_utils import get_config, get_file_manager  # type: ignore
+except Exception:
+    import os, sys
+    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+    from mcp_tools.common_utils import get_config, get_file_manager  # type: ignore
 
 
 class TAPDWordFrequencyAnalyzer:
@@ -359,3 +365,51 @@ async def analyze_tapd_word_frequency(
     """
     analyzer = TAPDWordFrequencyAnalyzer(data_file_path)
     return analyzer.analyze_word_frequency(min_frequency, use_extended_fields)
+
+
+if __name__ == "__main__":
+    import argparse
+    from pprint import pprint
+
+    parser = argparse.ArgumentParser(description="TAPD 数据词频统计分析器")
+    parser.add_argument("--data", "-f", default="local_data/msg_from_fetcher.json", help="TAPD 数据文件路径（JSON）")
+    parser.add_argument("--min", dest="min_freq", type=int, default=3, help="最小词频阈值，默认3")
+    parser.add_argument("--no-extended", action="store_true", help="不使用扩展字段参与统计")
+    parser.add_argument("--out", "-o", default="local_data/word_frequency.json", help="结果输出文件（JSON）")
+    args = parser.parse_args()
+
+    analyzer = TAPDWordFrequencyAnalyzer(args.data)
+    result = analyzer.analyze_word_frequency(min_frequency=args.min_freq, use_extended_fields=not args.no_extended)
+
+    # 打印简要结果
+    if result.get("status") == "success":
+        stats = result.get("statistics", {})
+        top20 = result.get("word_frequency", {}).get("top_20_words", {})
+        print("[词频分析完成]")
+        print(f"需求: {stats.get('stories_count', 0)}, 缺陷: {stats.get('bugs_count', 0)}, 合计: {stats.get('total_items', 0)}")
+        print(f"总词数: {stats.get('total_words', 0)}, 不重复词: {stats.get('unique_words', 0)}")
+        print("Top 20 关键词:")
+        for w, c in list(top20.items())[:20]:
+            print(f"  {w}: {c}")
+    else:
+        print(f"[错误] {result.get('message')}")
+        if result.get("suggestion"):
+            print("建议:", result["suggestion"])
+
+    # 保存到文件
+    try:
+        # 使用统一文件管理器以确保目录存在
+        fm = get_file_manager()
+        out_path = args.out
+        # 处理相对路径：允许传入 local_data/xxx 或文件名
+        if not os.path.isabs(out_path):
+            if out_path.replace("\\", "/").startswith("local_data/"):
+                out_abs = get_config().get_data_file_path(out_path)
+            else:
+                out_abs = get_config().get_data_file_path(out_path)
+        else:
+            out_abs = out_path
+        fm.save_json_data(result, out_abs)
+        print(f"结果已保存: {out_abs}")
+    except Exception as e:
+        print(f"保存结果失败: {e}")

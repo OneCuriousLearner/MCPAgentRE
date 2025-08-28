@@ -10,7 +10,13 @@ TAPD 数据生成器 - 用于生成模拟的 TAPD 需求和缺陷数据
 """
 from faker import Faker
 import random, uuid, json, pathlib, datetime
-from .common_utils import get_file_manager
+# 兼容导入：支持包内相对导入与脚本直接运行
+try:
+    from .common_utils import get_file_manager  # type: ignore
+except Exception:
+    import os, sys
+    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+    from mcp_tools.common_utils import get_file_manager  # type: ignore
 
 fk = Faker("zh_CN")
 

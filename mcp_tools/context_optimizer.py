@@ -18,7 +18,13 @@ TAPD 数据智能摘要优化工具
 
 import json, os, aiohttp, asyncio
 from typing import Dict, List, Callable, Awaitable, AsyncIterable
-from .common_utils import get_api_manager, get_file_manager, TransmissionManager
+# 兼容导入：既支持作为包导入，也支持脚本直接运行
+try:
+    from .common_utils import get_api_manager, get_file_manager, TransmissionManager  # type: ignore
+except Exception:
+    import os, sys
+    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+    from mcp_tools.common_utils import get_api_manager, get_file_manager, TransmissionManager  # type: ignore
 
 # ---------------------------------------------------------------------------
 # 1. Pagination helpers
