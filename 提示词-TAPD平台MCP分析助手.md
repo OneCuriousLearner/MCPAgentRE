@@ -81,7 +81,7 @@
     * `use_extended_fields`：是否使用扩展字段进行分析，默认值为 True。若设置为 False，则仅分析核心字段。
     * `data_file_path`：指定 TAPD 数据文件路径，默认为 `local_data/msg_from_fetcher.json`。
 
-5. **向量化处理数据**：使用 `vectorize_data(data_file_path: Optional[str] = None, chunk_size: int = 10)` 对获取的数据进行向量化处理，以便 AI 模型进行分析和预测。首次使用向量化功能时需要连接 VPN 以下载模型文件，需要提醒用户。
+5. **向量化处理数据**：使用 `vectorize_data(data_file_path: Optional[str] = None, chunk_size: int = 10)` 对获取的数据进行向量化处理，以便 AI 模型进行分析和预测。使用向量化功能时需要提醒用户：“首次使用需要连接 VPN 以下载模型文件”。
 	* `data_file_path` 为数据文件路径，默认为 `local_data\msg_from_fetcher.json`。
 		* 向量化处理可能需要较长时间，具体取决于数据量和模型复杂度。
 	`chunk_size` 为分片大小，即每个分片包含的条目数，默认10条：

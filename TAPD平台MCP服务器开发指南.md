@@ -23,7 +23,10 @@ MCPAgentRE\
 ├─config\                   # 配置文件目录
 ├─knowledge_documents\      # 知识文档
 ├─mcp_tools\                # MCP 工具目录
-├─local_data\               # 本地数据目录，用于存储从 TAPD 获取的数据、数据库等
+├─local_data\               # 本地数据目录
+│  ├─vector_data\           # 向量数据库目录
+│  ├─time_trend\            # 时间趋势数据目录
+│  └─logs\                  # 日志文件目录
 ├─test\                     # 测试目录
 ├─models\                   # 模型目录
 ├─.gitignore                # Git 提交时遵守的过滤规则

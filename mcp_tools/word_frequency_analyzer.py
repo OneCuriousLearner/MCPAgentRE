@@ -375,7 +375,7 @@ if __name__ == "__main__":
     parser.add_argument("--data", "-f", default="local_data/msg_from_fetcher.json", help="TAPD 数据文件路径（JSON）")
     parser.add_argument("--min", dest="min_freq", type=int, default=3, help="最小词频阈值，默认3")
     parser.add_argument("--no-extended", action="store_true", help="不使用扩展字段参与统计")
-    parser.add_argument("--out", "-o", default="local_data/word_frequency.json", help="结果输出文件（JSON）")
+    parser.add_argument("--out", "-o", default="local_data/logs/word_frequency.json", help="结果输出文件（JSON）")
     args = parser.parse_args()
 
     analyzer = TAPDWordFrequencyAnalyzer(args.data)

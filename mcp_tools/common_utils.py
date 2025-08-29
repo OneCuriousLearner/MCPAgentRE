@@ -718,9 +718,9 @@ class TransmissionManager:
 
     def __init__(self, file_manager: FileManager):
         self.fm = file_manager
-        # 复用本地数据目录
-        self.retry_log_path = self.fm.config.get_data_file_path("retry_log.json")
-        self.report_path = self.fm.config.get_data_file_path("transmission_report.json")
+        # 将日志文件存储到 logs 子目录，使目录结构更简洁
+        self.retry_log_path = self.fm.config.get_data_file_path("logs/retry_log.json")
+        self.report_path = self.fm.config.get_data_file_path("logs/transmission_report.json")
         self.retry_logs: List[Dict[str, Any]] = []
         self.stats: Dict[str, Any] = {
             "total_chunks": 0,
