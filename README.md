@@ -267,7 +267,7 @@ MCPAgentRE\
   * WORKSPACE_ID：TAPD项目ID，可通过TAPD平台获取
   * 提交Git时会根据`.gitignore`忽略`api.txt`文件，确保敏感信息不被泄露
 
-2. **LLM API配置（可选）**
+1. **LLM API配置**
 
 系统现已支持两种LLM API提供商，您可以根据需要选择配置：
 

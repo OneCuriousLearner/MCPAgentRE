@@ -447,7 +447,7 @@ async def generate_fake_tapd_data(
     n_story_B: int = 200,
     n_bug_A: int = 400, 
     n_bug_B: int = 300,
-    output_path: str = "local_data/fake_tapd.json"
+    output_path: str = "local_data/msg_from_fetcher.json"
 ) -> str:
     """生成模拟的TAPD需求和缺陷数据
     
@@ -463,8 +463,8 @@ async def generate_fake_tapd_data(
         n_story_B (int): 功能决策类需求数量，默认200条
         n_bug_A (int): 简单缺陷数量，默认400条
         n_bug_B (int): 详细缺陷数量，默认300条
-        output_path (str): 输出文件路径，默认为 local_data/fake_tapd.json
-        
+        output_path (str): 输出文件路径，默认为 local_data/msg_from_fetcher.json
+
     返回:
         str: 生成结果的JSON字符串，包含生成的数据统计信息
         
