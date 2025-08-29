@@ -32,6 +32,7 @@ from mcp_tools.word_frequency_analyzer import analyze_tapd_word_frequency    # �
 from mcp_tools.data_preprocessor import preprocess_description_field, preview_description_cleaning    # 导入数据预处理工具
 from mcp_tools.knowledge_base import enhance_tapd_data_with_knowledge    # 导入数据增强工具
 from mcp_tools.time_trend_analyzer import analyze_time_trends as analyze_trends    # 导入时间趋势分析工具
+from mcp_tools.data_precise_searcher import search_tapd_data as precise_search, search_by_priority, get_tapd_statistics    # 导入精确搜索工具
 
 # 全局日志与环境降噪：确保第三方库不会向 stdout 打印，避免破坏 MCP stdio
 logging.basicConfig(level=logging.WARNING, stream=sys.stderr, force=True)
@@ -918,6 +919,178 @@ async def analyze_time_trends(
             "status": "error",
             "message": f"时间趋势分析失败：{str(e)}",
             "suggestion": "请检查数据文件是否存在，时间格式是否正确(YYYY-MM-DD)"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def precise_search_tapd_data(
+    search_value: str,
+    search_field: Optional[str] = None,
+    data_type: Literal['stories', 'bugs', 'both'] = "both",
+    exact_match: bool = False,
+    case_sensitive: bool = False
+) -> str:
+    """
+    TAPD数据精确搜索工具
+    
+    功能描述:
+        - 对TAPD需求和缺陷数据进行精确字段搜索
+        - 支持全字段搜索或指定字段搜索
+        - 提供精确匹配和模糊匹配模式
+        - 可选择搜索需求、缺陷或两者
+        
+    参数:
+        search_value (str): 搜索值，要查找的内容
+        search_field (str, optional): 搜索字段，None表示搜索所有字段。
+                                     需求字段: id, name, description, creator, priority, priority_label, status等
+                                     缺陷字段: id, title, description, reporter, priority, severity, status等
+        data_type (str): 数据类型，可选 'stories'(需求)、'bugs'(缺陷)、'both'(两者)，默认 'both'
+        exact_match (bool): 是否精确匹配，True=完全相等，False=包含匹配，默认 False
+        case_sensitive (bool): 是否区分大小写，默认 False
+        
+    返回:
+        str: 搜索结果的JSON字符串，包含匹配的数据项和统计摘要
+        
+    使用场景:
+        - 根据ID精确查找特定需求或缺陷
+        - 搜索包含特定关键词的需求描述
+        - 查找某个创建者的所有任务
+        - 检索特定状态的工作项
+        
+    示例:
+        - 搜索ID: search_value="1148591566001000001", search_field="id"
+        - 搜索创建者: search_value="张凯晨", search_field="creator"
+        - 模糊搜索标题: search_value="登录", search_field="name", exact_match=False
+        - 搜索所有字段: search_value="前端开发", search_field=None
+    """
+    try:
+        result = precise_search(
+            search_value=search_value,
+            search_field=search_field,
+            data_type=data_type,
+            exact_match=exact_match,
+            case_sensitive=case_sensitive
+        )
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"精确搜索失败：{str(e)}",
+            "suggestion": "请检查搜索参数是否正确，确保数据文件存在"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def search_tapd_by_priority(
+    priority_filter: Literal['high', 'medium', 'low', 'all', 'urgent', 'Nice To Have', 'Low', 'Middle', 'High'] = "high",
+    data_type: Literal['stories', 'bugs', 'both'] = "both"
+) -> str:
+    """
+    按优先级搜索TAPD数据
+    
+    功能描述:
+        - 根据优先级筛选TAPD需求和缺陷数据
+        - 支持高中低优先级预设过滤器
+        - 支持具体优先级标签搜索
+        - 默认查找高优先级数据
+        
+    参数:
+        priority_filter (str): 优先级过滤器，可选值：
+                              通用: 'high'(高)、'medium'(中)、'low'(低)、'all'(全部)
+                              需求专用: 'Nice To Have'、'Low'、'Middle'、'High'
+                              缺陷专用: 'urgent'(紧急)
+        data_type (str): 数据类型，可选 'stories'(需求)、'bugs'(缺陷)、'both'(两者)，默认 'both'
+        
+    返回:
+        str: 搜索结果的JSON字符串，包含符合优先级条件的数据项和统计摘要
+        
+    优先级说明:
+        需求优先级 (数字越大越紧急):
+        - 1: Nice To Have
+        - 2: Low  
+        - 3: Middle (中优先级)
+        - 4: High (高优先级)
+        
+        缺陷优先级:
+        - insignificant: 微不足道
+        - low: 低
+        - medium: 中
+        - high: 高
+        - urgent: 紧急
+        
+    使用场景:
+        - 快速查看所有高优先级任务
+        - 统计不同优先级任务的分布
+        - 筛选紧急需要处理的缺陷
+        - 生成优先级报告
+    """
+    try:
+        result = search_by_priority(
+            priority_filter=priority_filter,
+            data_type=data_type
+        )
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"优先级搜索失败：{str(e)}",
+            "suggestion": "请检查优先级参数是否正确，确保数据文件存在"
+        }
+        return json.dumps(error_result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+async def get_tapd_data_statistics(
+    data_type: Literal['stories', 'bugs', 'both'] = "both"
+) -> str:
+    """
+    获取TAPD数据统计信息
+    
+    功能描述:
+        - 提供TAPD数据的全面统计分析
+        - 包含数量分布、优先级分布、状态分布等
+        - 支持需求和缺陷的独立统计
+        - 生成数据概览报告
+        
+    参数:
+        data_type (str): 数据类型，可选 'stories'(需求)、'bugs'(缺陷)、'both'(两者)，默认 'both'
+        
+    返回:
+        str: 统计信息的JSON字符串，包含详细的分布数据和汇总信息
+        
+    统计内容:
+        需求统计:
+        - 总数量、优先级分布、状态分布
+        - 创建者分布、最近项目数、已完成项目数
+        - 高优先级项目数量
+        
+        缺陷统计:
+        - 总数量、优先级分布、严重程度分布
+        - 状态分布、报告者分布、最近缺陷数
+        - 已解决缺陷数、高优先级缺陷数
+        
+    使用场景:
+        - 生成项目数据概览报告
+        - 了解工作负载分布
+        - 评估项目质量状况
+        - 为管理决策提供数据支持
+    """
+    try:
+        result = get_tapd_statistics(data_type=data_type)
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "status": "error",
+            "message": f"统计信息获取失败：{str(e)}",
+            "suggestion": "请检查数据文件是否存在，建议先调用 get_tapd_data 工具获取数据"
         }
         return json.dumps(error_result, ensure_ascii=False, indent=2)
 

@@ -44,6 +44,8 @@ local_data/vector_data/*
 knowledge_documents/*
 !knowledge_documents/.gitkeep
 api.txt
+!local_data/time_trend/.gitkeep
+!local_data/logs/.gitkeep
 
 # models
 models/*
@@ -64,6 +66,9 @@ models/*
 !knowledge_documents/测试用例规则自定义功能使用手册.md
 !knowledge_documents/历史需求知识库使用指南.md
 !knowledge_documents/AI测试用例评估器操作手册.md
+!knowledge_documents/TAPD智能报告数据时间筛选功能使用手册.md
+!knowledge_documents/TAPD时间趋势分析工具使用手册.md
+!knowledge_documents/TAPD数据精确搜索功能使用手册.md
 
 # Test case evaluation files and results  
 test_results/

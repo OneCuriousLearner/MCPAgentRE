@@ -125,15 +125,16 @@ class APIManager:
             prompt (str): 用户输入的提示词/问题，作为对话内容发送给模型
             session (aiohttp.ClientSession): 异步HTTP会话对象，用于发送API请求
             model (Optional[str]): 指定要使用的模型名称，默认值根据API类型自动选择
-                DeepSeek API模型选项:
-                    - "deepseek-chat" (默认): 通用对话模型，指向DeepSeek-V3-0324
-                    - "deepseek-reasoner": 推理模型，指向DeepSeek-R1-0528，支持reasoning_content字段
                 SiliconFlow API模型选项:
-                    - "moonshotai/Kimi-K2-Instruct" (默认，可通过环境变量 SF_MODEL 或常量 SF_DEFAULT_MODEL 覆盖): 月之暗面Kimi模型
+                    - "deepseek-ai/DeepSeek-V3.1": DeepSeek V3.1模型 (默认，可通过环境变量 SF_MODEL 或常量 SF_DEFAULT_MODEL 覆盖)
+                    - "moonshotai/Kimi-K2-Instruct": 月之暗面Kimi模型
                     - "Qwen/QwQ-32B": 通义千问推理模型  
                     - "deepseek-ai/DeepSeek-V3": DeepSeek V3模型
                     - "THUDM/GLM-4-9B-0414": 智谱GLM模型
                     - 其他支持的模型请参考SiliconFlow API文档
+                DeepSeek API模型选项:
+                    - "deepseek-chat" (默认): 通用对话模型，指向DeepSeek-V3-0324
+                    - "deepseek-reasoner": 推理模型，指向DeepSeek-R1-0528，支持reasoning_content字段
             endpoint (Optional[str]): API端点URL，用于确定使用哪种API
                 - None (默认): 使用DeepSeek API (https://api.deepseek.com/v1)
                 - "https://api.deepseek.com/v1": 显式指定DeepSeek API
@@ -179,11 +180,11 @@ class APIManager:
                 max_tokens=500
             )
             
-            # 使用SiliconFlow的Kimi模型
+            # 使用SiliconFlow的模型
             result = await api_manager.call_llm(
                 prompt="分析这段代码的优化建议",
                 session=session,
-                model="moonshotai/Kimi-K2-Instruct",
+                model="deepseek-ai/DeepSeek-V3.1",
                 endpoint="https://api.siliconflow.cn/v1",
                 max_tokens=300
             )
@@ -191,7 +192,7 @@ class APIManager:
         环境变量要求:
             - DS_KEY: DeepSeek API密钥，从 https://platform.deepseek.com/api_keys 获取
             - SF_KEY: SiliconFlow API密钥，从 https://siliconflow.cn/ 获取
-            - SF_MODEL: 覆盖 SiliconFlow 默认模型 (可选，默认: moonshotai/Kimi-K2-Instruct)
+            - SF_MODEL: 覆盖 SiliconFlow 默认模型 (可选，默认: deepseek-ai/DeepSeek-V3.1)
             - DS_EP: DeepSeek API端点 (可选，默认: https://api.deepseek.com/v1)
             - DS_MODEL: DeepSeek默认模型 (可选，默认: deepseek-chat)
         

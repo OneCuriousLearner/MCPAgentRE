@@ -15,11 +15,12 @@
 
 ## 项目背景
 
-`MCP_Agent:RE`是一个用于从 TAPD 平台获取需求和缺陷数据并生成质量分析报告的 Python 项目，旨在为 AI 客户端提供数据支持。
+`MCP_Agent:RE` 是一个用于从 TAPD 平台获取需求和缺陷数据并生成质量分析报告的 Python 项目，旨在为 AI 客户端提供数据支持。
 
 ### 可用的 MCP 服务器
 
-本项目提供了丰富的 MCP 工具集，支持 TAPD 数据的获取、处理、分析和智能摘要功能：
+* MCP 工具统一放置于 [tapd_mcp_server.py](tapd_mcp_server.py) 中。
+* 本项目提供了丰富的 MCP 工具集，支持 TAPD 数据的获取、处理、分析和智能摘要功能：
 
 #### 数据获取工具
 
@@ -32,8 +33,27 @@
 #### 数据预处理工具
 
 * **`preprocess_tapd_description(data_file_path, output_file_path, use_api, process_documents, process_images)`** - 清理TAPD数据中description字段的HTML样式，提取文字、链接、图片内容并通过DeepSeek API优化表达（需要配置 DeepSeek API 密钥），大幅压缩数据长度同时保留关键信息【仍在开发中...】
+  * 遇到了腾讯文档API导出限制问题，API每日仅限导出9篇文档
+  * 遇到了TAPD数据详情中图片、视频无法导出的问题
+  * 目前仅支持文本内容的提取和处理
 * **`preview_tapd_description_cleaning(data_file_path, item_count)`** - 预览description字段清理效果，展示压缩比例和提取信息，不修改原始数据
 * **`docx_summarizer.py`** - 提取 .docx 文档中的文本、图片和表格信息，并生成摘要【仍在开发中...】
+
+#### 精确搜索工具
+
+* **`precise_search_tapd_data(search_value, search_field, data_type, exact_match, case_sensitive)`** - TAPD数据精确搜索工具，支持对需求和缺陷进行精确字段匹配搜索【新增功能】
+  * 支持按任意字段精确或模糊搜索
+  * 可指定搜索需求、缺陷或两者
+  * 支持大小写敏感选项
+  * 提供匹配信息和统计摘要
+* **`search_tapd_by_priority(priority_filter, data_type)`** - 按优先级搜索TAPD数据，快速筛选高中低优先级项目【新增功能】
+  * 支持高中低优先级预设过滤器
+  * 支持具体优先级标签搜索
+  * 默认查找高优先级数据（priority >= 3 或 urgent/high）
+* **`get_tapd_data_statistics(data_type)`** - 获取TAPD数据统计信息，提供全面的数据分布分析【新增功能】
+  * 包含数量、优先级、状态、创建者分布
+  * 支持需求和缺陷的独立统计
+  * 提供最近项目和完成情况统计
 
 #### 时间趋势分析工具
 
@@ -55,7 +75,7 @@
 
 * **`generate_fake_tapd_data(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)`** - 生成模拟 TAPD 数据，用于测试和演示（若不指明地址，使用后可能会覆盖本地数据，若需要来自 API 的正确数据，请再次调用数据获取工具）
 * **`generate_tapd_overview(since, until, max_total_tokens, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek 或 SiliconFlow API 密钥）
-* **`analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)`** - 分析TAPD数据的词频分布，生成关键词词云统计，为搜索功能提供精准关键词建议
+* **`analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)`** - 分析 TAPD 数据的词频分布，生成关键词词云统计，为搜索功能提供精准关键词建议
 
 #### 示例工具
 
@@ -67,13 +87,13 @@
 
 #### 测试用例评估
 
-* `mcp_tools\test_case_rules_customer.py` - 测试用例评估规则配置脚本，用于配置测试用例的评估标准和优先级
-* `mcp_tools\test_case_require_list_knowledge_base.py` - 测试用例需求知识库生成脚本，可从 TAPD 数据中提取需求信息并生成知识库，或手动修改需求信息
-* `mcp_tools\test_case_evaluator.py` - 测试用例AI评估器脚本，用于根据配置的规则评估测试用例质量，并生成评估报告至本地文件
+* [test_case_rules_customer.py](mcp_tools/test_case_rules_customer.py) - 测试用例评估规则配置脚本，用于配置测试用例的评估标准和优先级
+* [test_case_require_list_knowledge_base.py](mcp_tools/test_case_require_list_knowledge_base.py) - 测试用例需求知识库生成脚本，可从 TAPD 数据中提取需求信息并生成知识库，或手动修改需求信息
+* [test_case_evaluator.py](mcp_tools/test_case_evaluator.py) - 测试用例AI评估器脚本，用于根据配置的规则评估测试用例质量，并生成评估报告至本地文件
 
 ### 统一接口脚本
 
-* 位于 `mcp_tools\common_utils.py`
+* 位于 [common_utils.py](mcp_tools/common_utils.py)
 * 提供统一的工具接口，简化 MCP 工具的注册和调用
 * 包含的工具如下：
 
@@ -130,7 +150,7 @@
 * **`get_headers(endpoint)`** - 智能构建API请求头，根据endpoint自动选择对应的API密钥
 * **`call_llm(prompt, session, model, endpoint, max_tokens)`** - 兼容多API的LLM调用接口
   * 支持 **DeepSeek API**（默认）：`deepseek-chat`、`deepseek-reasoner` 模型
-  * 支持 **SiliconFlow API**：`moonshotai/Kimi-K2-Instruct` 等模型
+  * 支持 **SiliconFlow API**：`deepseek-ai/DeepSeek-V3.1` 等模型
   * 自动检测API类型并适配不同的请求格式和错误处理
 
 #### 全局实例管理函数
@@ -155,6 +175,7 @@ MCPAgentRE\
 ├─local_data\                 # 本地数据目录，用于存储从 TAPD 获取的数据、数据库等（Git 提交时会被忽略）
 │  ├─msg_from_fetcher.json        # 从 TAPD 获取的需求和缺陷数据
 │  ├─fake_tapd.json               # 假数据生成器生成的模拟 TAPD 数据
+│  ├─logs\                        # 日志文件目录
 │  └─vector_data\                 # 向量数据库文件目录
 │     ├─data_vector.index             # 向量数据库索引文件
 │     ├─data_vector.metadata.pkl      # 向量数据库元数据文件
@@ -194,25 +215,26 @@ MCPAgentRE\
 
 1. **安装Python 3.10**
 
-* 从[Python官网](https://www.python.org/downloads/windows/)下载Python 3.10.x安装包（建议3.10.11，与原环境一致）
-* 安装时勾选`Add Python to PATH`（关键！否则需手动配置环境变量）
-* 验证安装：终端运行`python --version`，应输出`Python 3.10.11`
+* 从 [Python官网](https://www.python.org/downloads/windows/) 下载 Python 3.10.x 安装包（建议 3.10.11，与原环境一致）
+* 安装时勾选 `Add Python to PATH`（关键！否则需手动配置环境变量）
+* 验证安装：终端运行 `python --version`，应输出 `Python 3.10.11`
 
 2. **安装uv工具**
 
-* 终端运行`pip install uv`（需确保pip已随Python安装）：
+* 终端运行 `pip install uv`（需确保pip已随Python安装）：
 
   ```bash
   pip install uv
   ```
 
-* 验证安装：运行`uv --version`，应显示版本信息
+* 验证安装：运行 `uv --version`，应显示版本信息
+* 关于如何在 UV 中切换 Python 版本，请参考 [UV - 管理Python 版本、环境、第三方包 - 知乎](https://zhuanlan.zhihu.com/p/27452300746)
 
 ### 二、项目文件迁移
 
 1. **复制项目目录**
 
-* 将原项目目录`D:\MiniProject\MCPAgentRE`完整复制到目标电脑（建议路径无中文/空格，如`D:\MCPAgentRE`）
+* 将原项目目录 `D:\MiniProject\MCPAgentRE` 完整复制到目标电脑（建议路径无中文/空格，如 `D:\MCPAgentRE`）
 
 ### 三、依赖安装
 
@@ -225,13 +247,13 @@ MCPAgentRE\
   uv sync
   ```
 
-  * 该命令会根据`pyproject.toml`安装所有依赖（包括MCP SDK、aiohttp等）
+  * 该命令会根据 [pyproject.toml](pyproject.toml) 安装所有依赖（包括MCP SDK、aiohttp等）
 
 ### 四、配置调整
 
 1. **TAPD API配置**
 
-* 在项目根目录下创建`api.txt`文件，复制下列文本，并替换配置为目标TAPD项目的真实值：
+* 在项目根目录下创建 `api.txt` 文件，复制下列文本，并替换配置为目标TAPD项目的真实值：
 
   ```python
   API_USER = '替换为你的TAPD API用户名'
@@ -263,11 +285,12 @@ MCPAgentRE\
   [Environment]::SetEnvironmentVariable("DS_KEY", "your-deepseek-api-key-here", "User")
   ```
 
-#### SiliconFlow API配置 【🆕 2025年7月22日新增】
+#### SiliconFlow API配置
 
-SiliconFlow提供多种优质模型，包括Kimi、通义千问等：
+SiliconFlow提供多种优质模型，包括DeepSeek、Kimi、Qwen等：
 
 * **获取API密钥**：访问 [SiliconFlow 开放平台](https://siliconflow.cn/) 注册并获取API密钥
+* 如果这是你的首次注册，在 [注册页面](https://cloud.siliconflow.cn/i/nYbojgoI) 可以填写我的邀请码 `nYbojgoI`，成功注册后双方均可获得 ￥14 额度，等价于 100w tokens 的免费试用额度
 
 * **设置环境变量**（Windows PowerShell）：
 
@@ -290,7 +313,7 @@ SiliconFlow提供多种优质模型，包括Kimi、通义千问等：
 
 * 设置环境变量后需重启编辑器和MCP客户端
 * 如果不配置API密钥，智能摘要工具会返回错误提示，但不影响其他功能的使用
-* 若需要使用SiliconFlow的其他模型，可在 `mcp_tools\common_utils.py` 文件头部修改 `SF_DEFAULT_MODEL` 变量
+* 若需要使用SiliconFlow的其他模型，可在 [common_utils.py](mcp_tools/common_utils.py) 文件头部修改 `SF_DEFAULT_MODEL` 变量
 * 详细配置说明请参考 [SiliconFlow API Docs](https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions#llm)
  与 [DeepSeek API Docs](https://api-docs.deepseek.com/zh-cn/)
 
@@ -318,7 +341,7 @@ SiliconFlow提供多种优质模型，包括Kimi、通义千问等：
 
 ##### MCP 服务调试
 
-1. 确保`tapd_mcp_server.py`的 main 函数中没有任何 print 语句（或已注释掉），以避免在启动时输出调试信息。
+1. 确保 [tapd_mcp_server.py](tapd_mcp_server.py) 的 main 函数中没有任何 print 语句（或已注释掉），以避免在启动时输出调试信息。
 
 2. 运行MCP调试器：
 
@@ -383,7 +406,7 @@ uv run mcp_tools/test_case_evaluator.py
 2. **配置 MCP 服务器**
 
   * 在 Chatbox 的 `设置` 中，找到 `MCP` 标签页
-  * 在`自定义 MCP 服务器`栏，点击`添加服务器`：
+  * 在 `自定义 MCP 服务器` 栏，点击 `添加服务器`：
     * 复制以下 JSON 配置：
 
       ```json
@@ -402,7 +425,7 @@ uv run mcp_tools/test_case_evaluator.py
       }
       ```
 
-    * 确保`--directory`指向的是MCP服务器所在的目录，即`D:\MiniProject\MCPAgentRE`（请按照实际目录修改）
+    * 确保 `--directory` 指向的是MCP服务器所在的目录，即 `D:\MiniProject\MCPAgentRE`（请按照实际目录修改）
   * 点击 `从剪贴板中的JSON导入`
 
 ### 配置 Claude Desktop 以使用 MCP 服务器
@@ -413,10 +436,10 @@ uv run mcp_tools/test_case_evaluator.py
 
 2. **配置MCP服务器**
 
-* 使用快捷键`Ctrl + ,`打开设置页面（或者点击左上角菜单图标 - File - Settings）
-* 选择`Developer`选项卡
-* 点击`Edit Config`按钮，将会弹出文件资源管理器
-* 编辑高亮提示的`claude_desktop_config.json`文件，添加以下内容（若有其他内容，请注意层级关系）：
+* 使用快捷键 `Ctrl + ,` 打开设置页面（或者点击左上角菜单图标 - File - Settings）
+* 选择 `Developer` 选项卡
+* 点击 `Edit Config` 按钮，将会弹出文件资源管理器
+* 编辑高亮提示的 `claude_desktop_config.json` 文件，添加以下内容（若有其他内容，请注意层级关系）：
 
   ```json
   {
@@ -435,10 +458,16 @@ uv run mcp_tools/test_case_evaluator.py
   ```
 
   * 注意：
-    * `command`字段指定了运行MCP服务器的命令（通常为`uv`）
-    * `args`字段指定了运行MCP服务器的参数，包括项目目录（`--directory`）和运行的脚本文件（`run tapd_mcp_server.py`）
-    * 确保`--directory`指向的是MCP服务器所在的目录，即`D:\MiniProject\MCPAgentRE`（请按照实际目录修改）
+    * `command` 字段指定了运行MCP服务器的命令（通常为`uv`）
+    * `args` 字段指定了运行MCP服务器的参数，包括项目目录（`--directory`）和运行的脚本文件（`run tapd_mcp_server.py`）
+    * 确保 `--directory` 指向的是MCP服务器所在的目录，即 `D:\MiniProject\MCPAgentRE`（请按照实际目录修改）
 * 保存并关闭文件
+
+## 设置LLM提示词【推荐】
+
+* 将 [提示词-TAPD平台MCP分析助手.md](提示词-TAPD平台MCP分析助手.md) 文件中的内容复制到 Chatbox 的提示词设置中。
+* 除 Chatbox 外，其他AI客户端也可以使用相同的提示词内容。
+* 此功能将帮助您更好地与MCP服务器进行交互。根据实际需求调整提示词内容，以提高交互效果。
 
 ## 测试连接
 
@@ -465,13 +494,14 @@ uv run mcp_tools/test_case_evaluator.py
 
 # 扩展MCP服务器功能
 
-为了让项目目录结构更清晰，建议将MCP工具函数放在`mcp_tools`文件夹中。下面是一个添加新工具函数的示例方法。
+* 为了让项目目录结构更清晰，建议将MCP工具函数放在 `mcp_tools` 文件夹中。下面是一个添加新工具函数的示例方法。
+* 拓展阅读: [TAPD平台MCP服务器开发指南.md](TAPD平台MCP服务器开发指南.md)
 
 ## 添加新工具函数
 
 1. **创建工具函数文件**
 
-* 在`mcp_tools`文件夹中创建新的Python文件（如`new_tool.py`）
+* 在 `mcp_tools` 文件夹中创建新的Python文件（如 `new_tool.py`）
 * 编写异步函数，示例模板：
 
   ```python
@@ -492,9 +522,9 @@ uv run mcp_tools/test_case_evaluator.py
 
 2. **注册工具到服务器**
 
-* 在`tapd_mcp_server.py`中添加：
+* 在 [tapd_mcp_server.py](tapd_mcp_server.py) 中添加：
   * 导入语句：`from mcp_tools.new_tool import new_function`
-  * 使用`@mcp.tool()`装饰器注册函数：
+  * 使用 `@mcp.tool()` 装饰器注册函数：
 
     ```python
     @mcp.tool()

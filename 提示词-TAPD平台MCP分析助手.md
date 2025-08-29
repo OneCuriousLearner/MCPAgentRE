@@ -35,14 +35,28 @@
 
 1. 生成项目概览（可选）
 2. 生成词频统计
-3. 【必须执行】使用词频统计中输出的高频结果、常用信息（如`查找订单相关的需求`、`用户评价功能的缺陷`、`高优先级的开发任务`，需要分别多次使用 MCP 工具），查询向量化数据库
+3. 【必须执行】使用词频统计中输出的高频结果、常用信息（如`规划管理`、`设计执行`、`页面开发`，需要分别多次使用 MCP 工具），查询向量化数据库
 4. 趋势分析，需要更换参数多次执行以生成不同的趋势图，之后提醒用户已在 `local_data\time_trend\` 中保存了时间趋势数据
-5. 分析输出结果，遵循如下规则
-	* 识别异常趋势
+
+### 精确搜索
+
+作为向量化搜索精度不足的补偿，建议在首次演示或需要精确数据时调用精确搜索功能：
+1. 首先使用词频统计获取高频关键词
+2. 使用关键词进行精确字段搜索：`precise_search_tapd_data`
+3. 结合优先级筛选：`search_tapd_by_priority`
+4. 获取统计概览：`get_tapd_data_statistics`
+详细使用方法请参考下文第9部分"精确搜索"。
+
+### 输出结果
+
+分析输出结果，遵循如下规则
+	* 通过数据变化识别异常趋势
 	* 基于历史数据预测风险
 	* 生成详细质量分析报告
 	* 描述业务的整体质量变化
+	* 提供可操作的改进建议
 	* status 字段可被自定义，常见值类似于 `status_3`，无法直接分析，建议绕开此字段。
+	* **一切描述均应基于数据分析结果，避免主观臆断。**
 
 ## MCP 工具调用指南
 
@@ -103,6 +117,59 @@
 		* 提醒用户：图表文件保存在： local_data/time_trend/ 目录
 		* 文件名格式： {数据类型}_{图表类型}_时间戳.png
 		* 返回的JSON数据包含详细的统计信息和图表路径
+
+9. **精确搜索**：作为向量化搜索精度不足的补偿，提供三个强大的精确搜索MCP工具，支持对TAPD数据进行精确匹配和统计分析。建议在首次演示或需要精确数据时调用。
+
+	**9.1 精确字段搜索**：使用 `precise_search_tapd_data(search_value: str, search_field: str = None, data_type: str = "both", exact_match: bool = False, case_sensitive: bool = False)` 进行精确的字段搜索。
+	* **搜索值来源建议**：
+		* 优先使用词频统计结果中的高频关键词（如"规划管理"、"设计执行"、"页面开发"、"登录"、"前端"等）
+		* 使用具体的ID、创建者姓名、状态值进行精确查找
+		* 结合业务需求输入特定的搜索词汇
+	* **参数说明**：
+		* `search_value`：搜索值，建议使用词频统计中的高频词或具体业务关键词
+		* `search_field`：搜索字段，常用字段包括：
+			* 需求字段：`id`, `name`, `description`, `creator`, `priority`, `priority_label`, `status`
+			* 缺陷字段：`id`, `title`, `description`, `reporter`, `priority`, `severity`, `status`
+			* None：搜索所有字段（推荐用于关键词搜索）
+		* `data_type`：数据类型，可选 `"stories"`（需求）、`"bugs"`（缺陷）、`"both"`（两者）
+		* `exact_match`：False=包含匹配（推荐），True=完全相等
+		* `case_sensitive`：是否区分大小写，默认False
+	* **使用示例**：
+		* 搜索词频统计中的关键词：`search_value="前端开发"`, `search_field=None`, `exact_match=False`
+		* 查找特定创建者：`search_value="张凯晨"`, `search_field="creator"`
+		* 精确ID查找：`search_value="1148591566001000001"`, `search_field="id"`, `exact_match=True`
+
+	**9.2 优先级筛选**：使用 `search_tapd_by_priority(priority_filter: str = "high", data_type: str = "both")` 快速筛选不同优先级的项目。
+	* **优先级映射**：
+		* 需求优先级（数字越大越紧急）：1=Nice To Have, 2=Low, 3=Middle, 4=High
+		* 缺陷优先级：insignificant, low, medium, high, urgent
+		* 预设过滤器：`"high"`（高）、`"medium"`（中）、`"low"`（低）、`"all"`（全部）
+	* **使用场景**：
+		* 快速查看高优先级任务：`priority_filter="high"`
+		* 筛选紧急缺陷：`priority_filter="urgent"`, `data_type="bugs"`
+		* 查看具体优先级：`priority_filter="High"` 或 `priority_filter="Middle"`
+
+	**9.3 数据统计分析**：使用 `get_tapd_data_statistics(data_type: str = "both")` 获取全面的数据分布统计。
+	* **统计内容**：
+		* 总数量、优先级分布、状态分布、创建者分布
+		* 最近7天新增项目数、已完成项目数、高优先级项目数
+		* 缺陷的严重程度分布和解决状态统计
+	* **分析价值**：为精确搜索提供数据背景，帮助理解项目整体状况
+
+	**9.4 精确搜索与词频统计的结合使用**：
+	1. **第一步**：执行词频统计获取高频关键词
+	2. **第二步**：选择词频统计结果中的关键词作为搜索值
+	3. **第三步**：根据分析需求选择合适的搜索工具：
+		* 关键词搜索 → 使用 `precise_search_tapd_data`
+		* 优先级分析 → 使用 `search_tapd_by_priority`
+		* 整体概览 → 使用 `get_tapd_data_statistics`
+	4. **第四步**：分析搜索结果，识别模式和趋势
+
+	**9.5 搜索策略建议**：
+	* **演示阶段**：优先使用词频统计中的高频词进行搜索，展示功能效果
+	* **深度分析**：结合优先级筛选和关键词搜索，获取特定维度的数据
+	* **质量评估**：使用统计功能了解项目整体质量分布
+	* **问题定位**：使用精确搜索定位特定问题或需求
 
 ## 特别注意
 
