@@ -26,11 +26,11 @@
 
 #### 数据获取工具
 
-* **`get_tapd_data()`** - 从 TAPD API 获取需求和缺陷数据并保存到本地文件，返回数量统计【推荐】
+* **`get_tapd_data(clean_empty_fields)`** - 从 TAPD API 获取需求和缺陷数据并保存到本地文件，返回数量统计【推荐】
   * 适用于首次获取数据或定期更新本地数据
   * 包含需求和缺陷数据的完整集成
-* **`get_tapd_stories()`** - 获取 TAPD 项目需求数据，支持分页并直接返回 JSON 数据，但不保存至本地，建议仅在数据量较小时使用
-* **`get_tapd_bugs()`** - 获取 TAPD 项目缺陷数据，支持分页并直接返回 JSON 数据，但不保存至本地，建议仅在数据量较小时使用
+* **`get_tapd_stories(clean_empty_fields)`** - 获取 TAPD 项目需求数据，支持分页并直接返回 JSON 数据，但不保存至本地，建议仅在数据量较小时使用
+* **`get_tapd_bugs(clean_empty_fields)`** - 获取 TAPD 项目缺陷数据，支持分页并直接返回 JSON 数据，但不保存至本地，建议仅在数据量较小时使用
 
 #### 数据预处理工具
 
@@ -240,9 +240,19 @@ MCPAgentRE\
 
 ### 三、依赖安装
 
-1. **安装项目依赖**
+1. **创建虚拟环境**
 
 * 终端进入项目目录：`cd D:\MCPAgentRE`（根据实际路径调整）
+* 创建虚拟环境：
+
+  ```bash
+  uv venv
+  ```
+
+  * 该命令会在项目目录下创建一个名为 `.venv` 的虚拟环境目录
+
+2. **安装项目依赖**
+
 * 运行依赖安装命令：
 
   ```bash
@@ -378,6 +388,8 @@ uv run mcp_tools/test_case_require_list_knowledge_base.py
 ```
 
 3.  运行 AI 评估器
+
+* 运行前，请将需要处理的集成用例 Excel 文件放置于 `local_data` 文件夹中
 
 ```bash
 uv run mcp_tools/test_case_evaluator.py

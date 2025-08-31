@@ -44,7 +44,7 @@ except Exception as e:
     raise
 
 # 获取需求数据（支持分页）的函数
-async def get_story_msg():
+async def get_story_msg(clean_empty_fields: bool = True):
     url = 'https://api.tapd.cn/stories'  # TAPD需求API地址
     stories_list = []  # 存储所有需求数据的列表
     page = 1  # 初始页码
@@ -72,15 +72,18 @@ async def get_story_msg():
                     if not story_data.get('id'):  # 检查需求id是否为空
                         print(f'发现需求数据id为空（第{page}页），结束获取')
                         return stories_list  # 遇到空值立即终止并返回已有数据
-                    # 清洗空数据字段（None/空字符串）
-                    cleaned_story = {k: v for k, v in story_data.items() if v not in (None, "")}
-                    stories_list.append(cleaned_story)
+                    # 根据参数决定是否清洗空数据字段（None/空字符串）
+                    if clean_empty_fields:
+                        processed_story = {k: v for k, v in story_data.items() if v not in (None, "")}
+                    else:
+                        processed_story = story_data
+                    stories_list.append(processed_story)
         page += 1  # 页码递增
     print(f'需求数据获取完成，共获取{len(stories_list)}条')
     return stories_list
 
 # 获取缺陷数据（支持分页）的函数
-async def get_bug_msg():
+async def get_bug_msg(clean_empty_fields: bool = True):
     url = 'https://api.tapd.cn/bugs'  # TAPD缺陷API地址
     bugs_list = []  # 存储所有缺陷数据的列表
     page = 1  # 初始页码
@@ -108,9 +111,12 @@ async def get_bug_msg():
                     if not bug_data.get('title'):  # 检查缺陷title是否为空
                         print(f'发现缺陷数据title为空（第{page}页），结束获取')
                         return bugs_list  # 遇到空值立即终止并返回已有数据
-                    # 清洗空数据字段（None/空字符串）
-                    cleaned_bug = {k: v for k, v in bug_data.items() if v not in (None, "")}
-                    bugs_list.append(cleaned_bug)
+                    # 根据参数决定是否清洗空数据字段（None/空字符串）
+                    if clean_empty_fields:
+                        processed_bug = {k: v for k, v in bug_data.items() if v not in (None, "")}
+                    else:
+                        processed_bug = bug_data
+                    bugs_list.append(processed_bug)
         page += 1  # 页码递增
     print(f'缺陷数据获取完成，共获取{len(bugs_list)}条')
     return bugs_list
@@ -306,10 +312,10 @@ async def get_bug_msg_filtered(since_str=None, until_str=None):
 if __name__ == '__main__':
     import asyncio
     print('===== 开始获取需求数据 =====')
-    stories_data = asyncio.run(get_story_msg())
+    stories_data = asyncio.run(get_story_msg(clean_empty_fields=True))
     print('===== 开始获取缺陷数据 =====')
-    bugs_data = asyncio.run(get_bug_msg())
-    
+    bugs_data = asyncio.run(get_bug_msg(clean_empty_fields=True))
+
     data_to_save = {
         'stories': stories_data,
         'bugs': bugs_data

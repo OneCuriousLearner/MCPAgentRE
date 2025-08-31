@@ -122,7 +122,7 @@ class TestCaseProcessor:
 class TestCaseEvaluator:
     """测试用例AI评估器"""
     
-    def __init__(self, max_context_tokens: int = 12000):
+    def __init__(self, max_context_tokens: int = 8000):
         self.config = get_config()
         self.api_manager = get_api_manager()
         self.file_manager = get_file_manager()
@@ -140,29 +140,62 @@ class TestCaseEvaluator:
         for priority, ratio in self.rules_config['priority_ratios'].items():
             print(f"    * {priority}: {ratio['min']}-{ratio['max']}%")
         print(f"需求单知识库: 已加载 {len(self.requirement_kb.requirements)} 个需求单")
-        
-        # 上下文管理：总context = 请求tokens + 响应tokens + 提示词模板 + 缓冲
-        # 为了安全，设置请求tokens为总上下文的25%，响应tokens为50%，留25%缓冲
+
+        # 上下文管理与预算（新）：
+        # max_context_tokens 由以下部分组成：
+        # 10%预留tokens + 需求单tokens + 模板提示词tokens + 剩余可用tokens
+        # 剩余可用tokens = 待处理用例tokens + 返回表格tokens（约等于待处理用例tokens）
+        # 即：reserve + template + requirements + 2 * test_cases_tokens <= max_context
         self.max_context_tokens = max_context_tokens
-        
+
         # 构建动态评估提示词模板
         self.evaluation_prompt_template = self._build_dynamic_prompt_template()
-        
-        # 计算提示词模板的基础token数量（包括已替换的规则参数，但不包括动态内容）
-        # 先替换掉规则参数（这些在实际使用时已经被替换），但保留动态占位符
-        template_with_rules = self.evaluation_prompt_template
-        # 动态占位符保持不变，用于后续替换
-        template_base = template_with_rules.replace('{test_case_id}', '').replace('{test_case_title}', '').replace('{prerequisites}', '').replace('{step_description}', '').replace('{expected_result}', '').replace('{test_cases_json}', '').replace('{requirement_info}', '')
-        self.template_base_tokens = self.token_counter.count_tokens(template_base)
-        
-        # 重新计算token配置，将模板tokens纳入考虑
-        available_tokens = max_context_tokens - self.template_base_tokens  # 减去模板占用的tokens
-        self.max_request_tokens = int(available_tokens * 0.25)  # 25%用于请求（用例数据部分）
-        self.max_response_tokens = int(available_tokens * 0.50)  # 50%用于响应
-        self.token_threshold = int(self.max_request_tokens * 0.75)  # 75%阈值，确保安全
 
-        print(f"Token配置: 总上下文={max_context_tokens}, 模板基础tokens={self.template_base_tokens}, 可用tokens={available_tokens}")
-        print(f"请求限制={self.max_request_tokens}, 响应限制={self.max_response_tokens}, 请求阈值={self.token_threshold}")
+        # 计算提示词模板的基础token数量（不包含动态需求单与测试用例数据）
+        template_with_rules = self.evaluation_prompt_template
+        template_base = (
+            template_with_rules
+            .replace('{test_case_id}', '')
+            .replace('{test_case_title}', '')
+            .replace('{prerequisites}', '')
+            .replace('{step_description}', '')
+            .replace('{expected_result}', '')
+            .replace('{test_cases_json}', '')
+            .replace('{requirement_info}', '')
+        )
+        self.template_base_tokens = self.token_counter.count_tokens(template_base)
+
+        # 需求单信息替换后单独计算tokens（全局一次，批次内复用）
+        self.requirement_info_text = self.requirement_kb.get_requirements_for_evaluation()
+        self.requirement_tokens = self.token_counter.count_tokens(self.requirement_info_text)
+
+        # 10% 预留
+        self.reserve_tokens = max(64, int(self.max_context_tokens * 0.20))
+
+        # 动态可用预算（用于 请求用例 + 响应表格）
+        self.dynamic_pair_budget = self.max_context_tokens - (
+            self.reserve_tokens + self.template_base_tokens + self.requirement_tokens
+        )
+        if self.dynamic_pair_budget <= 0:
+            # 模板或需求单过大，给出降级提示并尽量留出最小对话空间
+            print(
+                f"警告：模板或需求单内容过大（模板={self.template_base_tokens}, 需求={self.requirement_tokens}）, "
+                f"已超出窗口预算。将采用最小对称预算进行计算。"
+            )
+            self.dynamic_pair_budget = max(256, int(self.max_context_tokens * 0.20))
+
+        # 单边预算（仅请求用例），在“响应≈2×请求”的假设下：
+        # reserve + template + requirements + (request + response)
+        # ≈ reserve + template + requirements + (request + 2×request)
+        # ≈ 固定项 + 3×request <= max_context
+        # 因此 request 的安全上限 ≈ dynamic_pair_budget / 3
+        self.single_side_budget = max(64, self.dynamic_pair_budget // 3)
+
+        print(
+            "Token预算配置: "
+            f"总上下文={max_context_tokens}, 预留={self.reserve_tokens}, 模板={self.template_base_tokens}, 需求={self.requirement_tokens}, "
+            f"可用(请求+响应)={self.dynamic_pair_budget}, 单边(请求)≈{self.single_side_budget}（响应≈2×请求JSON）"
+        )
 
     def _build_dynamic_prompt_template(self) -> str:
         """
@@ -191,10 +224,6 @@ class TestCaseEvaluator:
 5. **除此以外不需要任何分析或解释**
 6. **必须从测试用例JSON数据中提取真实的字段内容，不要使用任何占位符**
 
-## 需求单信息：
-
-{{requirement_info}}
-
 ## 评分规则：
 
 | 用例要素 | 是否必须 | 要求                                                                                                                         |
@@ -210,6 +239,10 @@ class TestCaseEvaluator:
 * 未提供前置条件时，给 -1 分，便于后期横向对比。
 * 若用例与需求单中任何一条需求都无关，则给0分。若与某一条需求相关程度较高，则根据相关程度给出分数。若同时与多条需求相关，则根据相关程度综合评分。
 * 对低于 10 分的要素给出准确的建议。给出的每一条建议都应当具体明确，且不超过100字。
+
+## 关联需求单信息：
+
+{{requirement_info}}
 
 ## 请为每个测试用例生成如下格式的表格
 
@@ -231,30 +264,20 @@ class TestCaseEvaluator:
 
     def estimate_batch_tokens(self, test_cases: List[Dict[str, Any]]) -> int:
         """
-        估算一批测试用例在批量处理时需要的token数量
-        
+        估算一批“仅测试用例数据部分”的token数量（不含模板与需求单）。
+
         参数:
             test_cases: 测试用例列表
-            
+
         返回:
-            预计token数量
+            仅测试用例JSON文本的token估算
         """
         if not test_cases:
             return 0
-            
-        # 获取需求单信息
-        requirement_info = self.requirement_kb.get_requirements_for_evaluation()
-        
-        # 构建与evaluate_batch一致的批量提示词
+
+        # 仅对测试用例JSON进行计数，模板与需求单已单独预计算
         test_cases_json = json.dumps(test_cases, ensure_ascii=False, indent=2)
-        
-        prompt = self.evaluation_prompt_template.format(
-            requirement_info=requirement_info,
-            test_cases_json=test_cases_json
-        )
-        
-        # 计算token数量
-        return self.token_counter.count_tokens(prompt)
+        return self.token_counter.count_tokens(test_cases_json)
     
     def split_test_cases_by_tokens(self, test_cases: List[Dict[str, Any]], 
                                  start_index: int = 0) -> Tuple[List[Dict[str, Any]], int]:
@@ -268,25 +291,40 @@ class TestCaseEvaluator:
         返回:
             (当前批次的测试用例, 下一批次的开始索引)
         """
+        # 基于“响应≈2×请求”的单边预算进行分批（仅统计请求侧的用例JSON部分）
         batch, next_index, current_tokens = BatchingUtils.split_by_token_budget(
             test_cases,
             estimate_tokens_fn=self.estimate_batch_tokens,
-            token_threshold=self.token_threshold,
+            token_threshold=self.single_side_budget,
             start_index=start_index,
         )
-        
-        # 计算合计tokens（请求+响应上限），用于更准确的预算展示
-        request_tokens_est = current_tokens
-        safety_tokens = max(128, int(self.max_context_tokens * 0.05))
-        allowed_response_by_total = max(64, self.max_context_tokens - request_tokens_est - safety_tokens)
-        response_tokens_cap = max(64, min(self.max_response_tokens, allowed_response_by_total))
-        total_estimated_tokens = request_tokens_est + response_tokens_cap
+
+        # 在“响应≈2×请求”的假设下，响应上限按“2×用例JSON tokens”取值
+        request_tokens_est = current_tokens  # 仅用例JSON部分
+        # 再次基于全局预算做一次安全裁剪，避免边界超限
+        max_pairs_left = max(
+            0,
+            self.max_context_tokens
+            - (self.reserve_tokens + self.template_base_tokens + self.requirement_tokens)
+        )
+        allowed_response_by_pairs = max_pairs_left - request_tokens_est
+        theoretical_response_cap = request_tokens_est * 2
+        # 受理论上限与剩余额度共同限制
+        response_tokens_cap = max(64, min(theoretical_response_cap, allowed_response_by_pairs))
+        total_estimated_tokens = (
+            self.reserve_tokens
+            + self.template_base_tokens
+            + self.requirement_tokens
+            + request_tokens_est
+            + response_tokens_cap
+        )
 
         # 显示当前批次包含的测试用例ID与token预算
         batch_ids = [case.get('test_case_id', 'N/A') for case in batch]
         print(
-            f"当前批次包含 {len(batch)} 个测试用例，预计tokens: 请求≈{request_tokens_est}, "
-            f"响应上限≈{response_tokens_cap}, 合计≈{total_estimated_tokens}（窗口={self.max_context_tokens}）"
+            f"当前批次包含 {len(batch)} 个测试用例，预计tokens: 模板={self.template_base_tokens}, 需求={self.requirement_tokens}, "
+            f"请求≈{request_tokens_est}, 响应上限≈{response_tokens_cap}, 预留={self.reserve_tokens}, "
+            f"合计≈{total_estimated_tokens}（窗口={self.max_context_tokens}）"
         )
         print(f"批次包含的用例ID: {', '.join(batch_ids)}")
         
@@ -306,35 +344,59 @@ class TestCaseEvaluator:
         """
         # 构建批量提示词 - 一次性处理多个测试用例
         test_cases_json = json.dumps(test_cases, ensure_ascii=False, indent=2)
-        
-        # 获取需求单信息
-        requirement_info = self.requirement_kb.get_requirements_for_evaluation()
-        
-        # 构建最终提示词（不再使用可能误导AI的占位符）
+
+        # 使用全局已缓存的需求单信息
+        requirement_info = self.requirement_info_text
+
+        # 构建最终提示词
         final_prompt = self.evaluation_prompt_template.format(
             requirement_info=requirement_info,
             test_cases_json=test_cases_json
         )
+
+        # 运行期注入校验与简短预览，帮助定位“未注入需求单”的问题
+        try:
+            assert "需求单信息" in final_prompt, "提示词中缺少需求单信息标题"
+            if requirement_info.strip():
+                # 取需求单首行进行存在性检查
+                first_line = requirement_info.strip().splitlines()[0]
+                if first_line:
+                    assert first_line in final_prompt, "需求单文本可能未正确注入提示词"
+        except AssertionError as _e:
+            print(f"[警告] 需求单注入校验失败: {_e}")
         
-        # 计算请求token数量，由统一助手在总预算内计算响应上限
-        request_tokens = self.token_counter.count_tokens(final_prompt)
-        dynamic_response_tokens = TokenBudgetUtils.compute_response_tokens(
-            final_prompt,
-            total_budget=self.max_context_tokens,
-            desired_response_cap=self.max_response_tokens,
-        )
-        print(f"批量处理 {len(test_cases)} 个用例: 请求tokens={request_tokens}, 响应tokens限制={dynamic_response_tokens}")
+        # 调试预览（只展示需求单与用例片段，避免日志过长）
+        try:
+            req_preview = requirement_info[:200].replace('\n', ' ')
+            cases_preview = test_cases_json[:200].replace('\n', ' ')
+            print(f"\n需求单片段: \n{req_preview}...")
+            print(f"用例JSON片段: \n{cases_preview}...\n")
+        except Exception:
+            pass
+
+        # 仅用例JSON的tokens（用于计算响应上限）
+        request_cases_tokens = self.token_counter.count_tokens(test_cases_json)
+
+        # 计算响应上限：取“2×用例”的理论值，并受总体预算限制
+        theoretical_response_cap = request_cases_tokens * 2
+        # 总体剩余额度（去掉预留、模板、需求及请求全部提示词后的剩余）
+        total_prompt_tokens = self.token_counter.count_tokens(final_prompt)
+        leftover_budget = max(0, self.max_context_tokens - self.reserve_tokens - total_prompt_tokens)
+        dynamic_response_tokens = max(64, min(theoretical_response_cap, leftover_budget))
+
+        # print(
+        #     f"批量处理 {len(test_cases)} 个用例: "
+        #     f"模板={self.template_base_tokens}, 需求={self.requirement_tokens}, 用例JSON≈{request_cases_tokens}, "
+        #     f"完整请求≈{total_prompt_tokens}, 响应tokens限制≈{dynamic_response_tokens}（响应≈2×请求JSON）"
+        # )
         
-        # 显示正在处理的测试用例ID
-        processing_ids = [case.get('test_case_id', 'N/A') for case in test_cases]
-        print(f"正在处理的测试用例: {', '.join(processing_ids)}")
         print("正在调用AI进行评估...")
         
         # 调用AI API（使用默认配置，支持环境变量自动检测）
         result = await self.api_manager.call_llm(
             prompt=final_prompt,
             session=session,
-            max_tokens=dynamic_response_tokens
+            max_tokens=self.max_context_tokens
         )
         
         print("AI评估完成，开始解析结果...")
@@ -527,25 +589,46 @@ async def main_process(test_batch_count: Optional[int] = None):
     参数:
         test_batch_count: 测试数据批次限制，None表示处理所有数据
     """
-    from datetime import datetime
-    from collections import Counter
-    start_time = datetime.now()
-    start_time_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
-    print(f"\n开始处理时间: {start_time_str}")
     
     config = get_config()
     processor = TestCaseProcessor()
     # 12K总上下文：3.6K请求 + 7.2K响应 + 2.4K缓冲
-    evaluator = TestCaseEvaluator(max_context_tokens=12000)
+    evaluator = TestCaseEvaluator(max_context_tokens=8000)
     
     # 获取规则配置中的优先级比例要求
     rules_config = get_test_case_rules()
     priority_ratios = rules_config['priority_ratios']
     
-    # 文件路径
-    excel_file = config.local_data_path / "TestCase_20250717141033-32202633.xlsx"
-    json_file = config.local_data_path / "TestCase_20250717141033-32202633.json"
-    result_file = config.local_data_path / "Proceed_TestCase_20250717141033-32202633.json"
+    # 文件选择：自动扫描 local_data 下的 .xlsx，并让用户交互选择
+    xlsx_files = sorted([p for p in config.local_data_path.glob("*.xlsx") if p.is_file()])
+    if not xlsx_files:
+        raise FileNotFoundError(f"未在目录中找到任何 .xlsx 文件: {config.local_data_path}")
+
+    print("\n检测到以下可处理的 Excel 文件：")
+    for idx, p in enumerate(xlsx_files, start=1):
+        print(f"  {idx}. {p.name}")
+
+    selected_index: Optional[int] = None
+    while selected_index is None:
+        choice = input("\n请输入要处理的文件编号 (数字): ").strip()
+        if not choice.isdigit():
+            print("输入无效，请输入数字编号。")
+            continue
+        num = int(choice)
+        if num < 1 or num > len(xlsx_files):
+            print(f"编号超出范围，请输入 1~{len(xlsx_files)} 之间的数字。")
+            continue
+        selected_index = num - 1
+
+    excel_file = xlsx_files[selected_index]
+    base_name = excel_file.stem  # 去除扩展名后的文件名
+    # 中间转换产物（如不存在则生成一次），仍按 <源名>.json 以便复用
+    json_file = config.local_data_path / f"{base_name}.json"
+    # 最终评估结果文件：Proceed_<用户选择的文件名>.json
+    result_file = config.local_data_path / f"Proceed_{base_name}.json"
+    print(f"\n已选择文件: {excel_file.name}")
+    print(f"转换JSON路径: {json_file.name}")
+    print(f"结果输出路径: {result_file.name}")
     
     try:
         # 步骤1: 检查Excel文件是否存在
@@ -562,6 +645,12 @@ async def main_process(test_batch_count: Optional[int] = None):
                 test_cases = json.load(f)
         
         print(f"加载了 {len(test_cases)} 条测试用例数据")
+
+        from datetime import datetime
+        from collections import Counter
+        start_time = datetime.now()
+        start_time_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
+        print(f"\n开始处理时间: {start_time_str}")
         
         # 分析测试用例的优先级分布
         level_counter = Counter()
@@ -627,7 +716,8 @@ async def main_process(test_batch_count: Optional[int] = None):
             result_data = {
                 "evaluation_results": evaluations,
                 "total_count": len(evaluations),
-                "generated_at": str(json_file).split('_')[-1].replace('.json', ''),
+                # 以所选源文件名（不含扩展名）作为生成标识
+                "generated_at": base_name,
                 "process_start_time": start_time_str,
                 "process_end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "priority_analysis": {
@@ -663,12 +753,17 @@ async def main_process(test_batch_count: Optional[int] = None):
 
 
 if __name__ == "__main__":
-    print(r" ______    __   __  ______    __        __  __    ______    ______   ______    ______    ")
-    print(r"/\  ___\  /\ \ / / /\  __ \  /\ \      /\ \/\ \  /\  __ \  /\__  _\ /\  __ \  /\  == \   ")
-    print(r"\ \  __\  \ \ \'/  \ \  __ \ \ \ \____ \ \ \_\ \ \ \  __ \ \/_/\ \/ \ \ \/\ \ \ \  __<   ")
-    print(r" \ \_____\ \ \__|   \ \_\ \_\ \ \_____\ \ \_____\ \ \_\ \_\   \ \_\  \ \_____\ \ \_\ \_\ ")
-    print(r"  \/_____/  \/_/     \/_/\/_/  \/_____/  \/_____/  \/_/\/_/    \/_/   \/_____/  \/_/ /_/ ")
+    print(
+r'''
+ ______    __   __  ______    __        __  __    ______    ______   ______    ______   
+/\  ___\  /\ \ / / /\  __ \  /\ \      /\ \/\ \  /\  __ \  /\__  _\ /\  __ \  /\  == \  
+\ \  __\  \ \ \'/  \ \  __ \ \ \ \____ \ \ \_\ \ \ \  __ \ \/_/\ \/ \ \ \/\ \ \ \  __<  
+ \ \_____\ \ \__|   \ \_\ \_\ \ \_____\ \ \_____\ \ \_\ \_\   \ \_\  \ \_____\ \ \_\ \_\
+  \/_____/  \/_/     \/_/\/_/  \/_____/  \/_____/  \/_/\/_/    \/_/   \/_____/  \/_/ /_/
 
+正在加载本地配置...
+''')
+    
     # 测试模式：处理3批数据
     # asyncio.run(main_process(test_batch_count=3))
 

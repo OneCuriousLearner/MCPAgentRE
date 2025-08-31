@@ -81,7 +81,7 @@ async def example_tool(param1: str = "success", param2: int = 57257) -> dict:
     return await example_function(param1, param2)
 
 @mcp.tool()
-async def get_tapd_data() -> str:
+async def get_tapd_data(clean_empty_fields: bool = True) -> str:
     """从TAPD API获取需求和缺陷数据并保存到本地文件
     
     功能描述:
@@ -90,6 +90,11 @@ async def get_tapd_data() -> str:
         - 返回获取到的需求和缺陷数量统计
         - 为后续的本地数据分析提供数据基础
         
+    参数:
+        clean_empty_fields (bool): 是否清理数据中的空字段
+            - True: 清理空字段，确保数据完整性
+            - False: 保留空字段，可能会导致数据处理错误
+
     数据保存格式:
         {
             "stories": [...],  // 需求数据数组
@@ -106,10 +111,10 @@ async def get_tapd_data() -> str:
     """
     try:
         print('===== Start fetching stories =====', file=sys.stderr, flush=True)
-        stories_data = await get_story_msg()
+        stories_data = await get_story_msg(clean_empty_fields=clean_empty_fields)
 
         print('===== Start fetching bugs =====', file=sys.stderr, flush=True)
-        bugs_data = await get_bug_msg()
+        bugs_data = await get_bug_msg(clean_empty_fields=clean_empty_fields)
 
         # 准备要保存的数据
         data_to_save = {
@@ -146,7 +151,7 @@ async def get_tapd_data() -> str:
 
 
 @mcp.tool()
-async def get_tapd_stories() -> str:
+async def get_tapd_stories(clean_empty_fields: bool = True) -> str:
     """获取TAPD平台指定项目的需求数据（支持分页）
     
     功能描述:
@@ -163,13 +168,13 @@ async def get_tapd_stories() -> str:
         str: 格式化后的需求数据JSON字符串，包含中文内容
     """
     try:
-        stories = await get_story_msg()
+        stories = await get_story_msg(clean_empty_fields=clean_empty_fields)
         return json.dumps(stories, ensure_ascii=False, indent=2)
     except Exception as e:
         return f"获取需求数据失败：{str(e)}"
 
 @mcp.tool()
-async def get_tapd_bugs() -> str:
+async def get_tapd_bugs(clean_empty_fields: bool = True) -> str:
     """获取TAPD平台指定项目的缺陷数据（支持分页）
     
     功能描述:
@@ -186,7 +191,7 @@ async def get_tapd_bugs() -> str:
         str: 格式化后的缺陷数据JSON字符串，包含中文内容
     """
     try:
-        bugs = await get_bug_msg()
+        bugs = await get_bug_msg(clean_empty_fields=clean_empty_fields)
         return json.dumps(bugs, ensure_ascii=False, indent=2)
     except Exception as e:
         return f"获取缺陷数据失败：{str(e)}"

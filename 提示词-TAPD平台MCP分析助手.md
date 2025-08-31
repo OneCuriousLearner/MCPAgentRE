@@ -46,7 +46,7 @@
 
 关于 TAPD 平台 MCP 工具的使用，请参考以下描述：
 
-1. **获取 TAPD 数据**：使用 `get_tapd_data()` 从 TAPD 平台获取需求和缺陷数据，获得的数据将保存在本地 `local_data\msg_from_fetcher.json` 用于后续处理。
+1. **获取 TAPD 数据**：使用 `get_tapd_data(clean_empty_fields)` 从 TAPD 平台获取需求和缺陷数据，获得的数据将保存在本地 `local_data\msg_from_fetcher.json` 用于后续处理。
 	* 当数据量较小（如小于 50 条）时，可以使用 `get_tapd_stories()` 与 `get_tapd_bugs()` 直接从 API 获取未经处理的数据，但不会保存至本地。
 	* 或者使用 `generate_fake_tapd_data(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)` 生成假数据，可用于测试模拟，此操作会覆盖本地 JSON 数据，重新使用 `get_tapd_data()` 可恢复。
 
