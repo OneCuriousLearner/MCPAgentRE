@@ -143,7 +143,7 @@ class TestCaseEvaluator:
 
         # 上下文管理与预算（新）：
         # max_context_tokens 由以下部分组成：
-        # 10%预留tokens + 需求单tokens + 模板提示词tokens + 剩余可用tokens
+        # 20%预留tokens + 需求单tokens + 模板提示词tokens + 剩余可用tokens
         # 剩余可用tokens = 待处理用例tokens + 返回表格tokens（约等于待处理用例tokens）
         # 即：reserve + template + requirements + 2 * test_cases_tokens <= max_context
         self.max_context_tokens = max_context_tokens
@@ -169,7 +169,7 @@ class TestCaseEvaluator:
         self.requirement_info_text = self.requirement_kb.get_requirements_for_evaluation()
         self.requirement_tokens = self.token_counter.count_tokens(self.requirement_info_text)
 
-        # 10% 预留
+        # 20% 预留
         self.reserve_tokens = max(64, int(self.max_context_tokens * 0.20))
 
         # 动态可用预算（用于 请求用例 + 响应表格）
@@ -592,7 +592,6 @@ async def main_process(test_batch_count: Optional[int] = None):
     
     config = get_config()
     processor = TestCaseProcessor()
-    # 12K总上下文：3.6K请求 + 7.2K响应 + 2.4K缓冲
     evaluator = TestCaseEvaluator(max_context_tokens=8000)
     
     # 获取规则配置中的优先级比例要求
