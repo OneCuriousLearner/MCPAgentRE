@@ -7,6 +7,7 @@
 * 这部分将会给出关于如何生成一份高质量项目报告的提示，MCP 工具详情请见“MCP 工具调用指南”部分。
 * 每一步完成后对本次获取的信息进行简单总结，如有报错请提醒用户。
 * 使用较大的时间跨度作为参数，例如“2025年6月1日至10月31日”
+* 开始回答时请按顺序列举出你在本次回答中将会使用的MCP工具。
 
 ### 首次使用（或多日未更新）
 
@@ -58,7 +59,7 @@
 3. **预处理 description 功能**：使用`preprocess_tapd_description(data_file_path, output_file_path, use_api, process_documents, process_images)` 清理TAPD数据中description字段的HTML样式，提取有意义内容并通过 LLM API 优化表达，压缩数据长度同时保留关键信息。
 	* **预处理预览功能**：`preview_tapd_description_cleaning(data_file_path, item_count)` 预览description字段清理效果，展示压缩比例和提取信息，不修改原始数据
 	* `output_file_path` 默认存储于 `local_data/msg_from_fetcher.json`
-	* `use_api=True` 将会使用 LLM API，默认为 True，需要提醒用户进行配置。
+	* `use_api=False` 将会使用 LLM API，默认为 False。
 
 4. **生成词频统计**：使用 `analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)` 方法生成词频统计，用于为之后的搜索功能提供精准关键词建议。
     * `min_frequency`：设置最小词频阈值，默认值为 3。可以根据数据量和需求调整此参数。
@@ -68,8 +69,8 @@
 5. **向量化处理数据**：使用 `vectorize_data(data_file_path: Optional[str] = None, chunk_size: int = 10)` 对获取的数据进行向量化处理，以便 AI 模型进行分析和预测。
 	* `data_file_path` 为数据文件路径，默认为 `local_data\msg_from_fetcher.json`。
 		* 向量化处理可能需要较长时间，具体取决于数据量和模型复杂度。
-	* `chunk_size` 为分片大小，即每个分片包含的条目数，默认10条：
-		* 推荐值：10-20（平衡精度与效率）
+	* `chunk_size` 为分片大小，即每个分片包含的条目数，默认5条：
+		* 推荐值：5-15（平衡精度与效率）
 		* 较小值：搜索更精准，但分片更多，处理时间略长
 		* 较大值：减少分片数量，处理时间短，搜索结果可能不精准
 

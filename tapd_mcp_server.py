@@ -199,7 +199,7 @@ async def get_tapd_bugs(clean_empty_fields: bool = True) -> str:
 @mcp.tool()
 async def vectorize_data(
     data_file_path: Optional[str] = "local_data/msg_from_fetcher.json",
-    chunk_size: int = 10,
+    chunk_size: int = 5,
     timeout_seconds: int = 600
 ) -> str:
     """向量化TAPD数据以支持大批量数据处理
@@ -212,8 +212,8 @@ async def vectorize_data(
         
     参数:
         data_file_path (str): 数据文件路径，默认为 local_data/msg_from_fetcher.json
-        chunk_size (int): 分片大小，每个分片包含的条目数，默认10条
-            - 推荐值：10-20（平衡精度与效率）
+        chunk_size (int): 分片大小，每个分片包含的条目数，默认5条
+            - 推荐值：5-15（平衡精度与效率）
             - 较小值：搜索更精准，但分片更多
             - 较大值：减少分片数量，但可能降低搜索精度
         
@@ -714,7 +714,7 @@ async def analyze_word_frequency(
 async def preprocess_tapd_description(
     data_file_path: str = "local_data/msg_from_fetcher.json",
     output_file_path: str = "local_data/msg_from_fetcher.json",
-    use_api: bool = True,
+    use_api: bool = False,
     process_documents: bool = False,
     process_images: bool = False
 ) -> str:
@@ -731,7 +731,7 @@ async def preprocess_tapd_description(
     参数:
         data_file_path (str): 输入数据文件路径，默认"local_data/msg_from_fetcher.json"
         output_file_path (str): 输出文件路径，默认"local_data/msg_from_fetcher.json"
-        use_api (bool): 是否使用DeepSeek API进行内容复述，默认True
+        use_api (bool): 是否使用DeepSeek API进行内容复述，默认False
         process_documents (bool): 是否处理腾讯文档链接（预留功能），默认False
         process_images (bool): 是否处理图片内容（预留功能），默认False
         
@@ -1111,7 +1111,7 @@ if __name__ == "__main__":
             print("🔥 开始预热向量化模型...", file=sys.stderr, flush=True)
             from mcp_tools.common_utils import get_model_manager
             model_manager = get_model_manager()
-            success = await model_manager.warm_up_model("paraphrase-MiniLM-L6-v2")
+            success = await model_manager.warm_up_model("paraphrase-multilingual-MiniLM-L12-v2")
             if success:
                 print("🎉 模型预热完成，MCP Inspector可流畅使用向量化功能", file=sys.stderr, flush=True)
             else:

@@ -45,12 +45,12 @@ except ImportError:
 class TAPDDataVectorizer:
     """TAPD数据向量化处理器 - 优化版"""
     
-    def __init__(self, model_name: str = "paraphrase-MiniLM-L6-v2", vector_db_path: Optional[str] = None):
+    def __init__(self, model_name: str = "paraphrase-multilingual-MiniLM-L12-v2", vector_db_path: Optional[str] = None):
         """
         初始化向量化器
         
         参数:
-            model_name: 使用的预训练模型名称，默认使用轻量级的paraphrase-MiniLM-L6-v2
+            model_name: 使用的预训练模型名称，默认使用轻量级的paraphrase-multilingual-MiniLM-L12-v2
             vector_db_path: 向量数据库存储路径
         """
         self.config = get_config()
@@ -320,6 +320,17 @@ class TAPDDataVectorizer:
                 try:
                     config = self.file_manager.load_json_data(config_path)
                     self._log(f"Vector DB loaded - model: {config.get('model_name')}, chunks: {config.get('chunk_count')}, dim: {config.get('vector_dimension')}")
+                    saved_model = str(config.get('model_name') or '').strip()
+                    self._log(f"Vector DB loaded - model: {saved_model}, chunks: {config.get('chunk_count')}, dim: {config.get('vector_dimension')}")
+                    # 一致性检查：如当前实例模型与DB保存的模型不同，则切换到DB模型，避免混用
+                    if saved_model and saved_model != self.model_name:
+                        self._log(f"Warning: current model '{self.model_name}' != DB model '{saved_model}', switching encoder to '{saved_model}'")
+                        self.model_name = saved_model
+                        try:
+                            # 预热/切换模型（同步）
+                            _ = self._get_model()
+                        except Exception as e:
+                            self._log(f"Failed to switch model to '{saved_model}': {e}")
                 except Exception as e:
                     self._log(f"Failed to read config: {str(e)}")
             

@@ -311,7 +311,10 @@ class TAPDDataPreciseSearcher:
                 'creator_distribution': self._get_creator_distribution(stories, 'creator'),
                 'recent_items': len([s for s in stories if self._is_recent(s.get('created', ''))]),
                 'completed_items': len([s for s in stories if s.get('status') == 'status_6']),
-                'high_priority_items': len(self._filter_by_priority(stories, 'high', 'stories'))
+                # 兼容：中(3)+高(4)合计
+                'high_priority_items': len(self._filter_by_priority(stories, 'high', 'stories')),
+                # 严格高优先级：仅统计优先级为 4 的需求
+                'strict_high_priority_items': len([s for s in stories if s.get('priority', '') == '4'])
             }
         
         if data_type in ['bugs', 'both'] and 'bugs' in data:
@@ -324,7 +327,10 @@ class TAPDDataPreciseSearcher:
                 'reporter_distribution': self._get_creator_distribution(bugs, 'reporter'),
                 'recent_items': len([b for b in bugs if self._is_recent(b.get('created', ''))]),
                 'resolved_items': len([b for b in bugs if b.get('status') in ['resolved', 'closed']]),
-                'high_priority_items': len(self._filter_by_priority(bugs, 'high', 'bugs'))
+                # 兼容：高( high ) + 紧急( urgent ) 合计
+                'high_priority_items': len(self._filter_by_priority(bugs, 'high', 'bugs')),
+                # 严格高优先级：仅统计 priority == 'high' 的缺陷（不含 urgent）
+                'strict_high_priority_items': len([b for b in bugs if b.get('priority', '') == 'high'])
             }
         
         return stats

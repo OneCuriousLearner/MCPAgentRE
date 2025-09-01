@@ -20,4 +20,5 @@ dependencies = [
     "openpyxl>=3.1.5",
     "openai>=1.101.0",
     "matplotlib>=3.10.5",
+    "hf-xet>=1.1.5",
 ]

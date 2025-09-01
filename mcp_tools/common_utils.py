@@ -369,12 +369,12 @@ class ModelManager:
     def __init__(self, config: MCPToolsConfig):
         self.config = config
     
-    def get_project_model_path(self, model_name: str = "paraphrase-MiniLM-L6-v2") -> Optional[str]:
+    def get_project_model_path(self, model_name: str = "paraphrase-multilingual-MiniLM-L12-v2") -> Optional[str]:
         """
         获取项目本地模型路径
         
         参数:
-            model_name: 模型名称，默认为 "paraphrase-MiniLM-L6-v2"
+            model_name: 模型名称，默认为 "paraphrase-multilingual-MiniLM-L12-v2"
             
         返回:
             str: 本地模型路径，如果不存在则返回None
@@ -404,7 +404,7 @@ class ModelManager:
         # 转换为字符串并标准化路径分隔符，确保跨平台兼容性
         return str(latest_snapshot).replace('\\', '/')
     
-    def get_model(self, model_name: str = "paraphrase-MiniLM-L6-v2") -> Any:
+    def get_model(self, model_name: str = "paraphrase-multilingual-MiniLM-L12-v2") -> Any:
         """
         获取模型实例，使用缓存避免重复加载
         
@@ -462,8 +462,10 @@ class ModelManager:
                 
                 # 设置缓存目录到项目本地，标准化路径分隔符
                 cache_dir = str(self.config.models_path).replace('\\', '/')
-                os.environ['TRANSFORMERS_CACHE'] = cache_dir
+                # 仅设置 HF_HOME（TRANSFORMERS_CACHE 在 v5 将废弃，会触发 FutureWarning）
                 os.environ['HF_HOME'] = cache_dir
+                # 降噪：关闭 Windows 上的 symlink 能力告警（功能不受影响，仅提示空间占用可能增加）
+                os.environ.setdefault('HF_HUB_DISABLE_SYMLINKS_WARNING', '1')
                 
                 from sentence_transformers import SentenceTransformer
                 
@@ -473,18 +475,20 @@ class ModelManager:
                 
                 with contextlib.redirect_stdout(io.StringIO()):
                     ModelManager._shared_model = SentenceTransformer(
-                        model_name, 
+                        model_name,
                         cache_folder=cache_dir
                     )
-                    
-                print(f"模型已下载并保存到：{self.config.models_path / model_name}", file=sys.stderr, flush=True)
+
+                # 说明：HuggingFace 将模型缓存到 HF_HOME 下的标准结构（models--* / snapshots / ...）
+                # 这里不直接指向具体快照目录，避免误导
+                print(f"模型已下载并缓存至：{cache_dir}", file=sys.stderr, flush=True)
             
             ModelManager._model_name_cache = model_name
             print("模型加载完成", file=sys.stderr, flush=True)
         
         return ModelManager._shared_model
     
-    async def get_model_async(self, model_name: str = "paraphrase-MiniLM-L6-v2") -> Any:
+    async def get_model_async(self, model_name: str = "paraphrase-multilingual-MiniLM-L12-v2") -> Any:
         """
         异步获取模型实例，避免阻塞事件循环
         
@@ -503,7 +507,7 @@ class ModelManager:
         import asyncio
         return await asyncio.to_thread(self.get_model, model_name)
     
-    def is_model_loaded(self, model_name: str = "paraphrase-MiniLM-L6-v2") -> bool:
+    def is_model_loaded(self, model_name: str = "paraphrase-multilingual-MiniLM-L12-v2") -> bool:
         """
         检查模型是否已经加载到内存中
         
@@ -516,7 +520,7 @@ class ModelManager:
         return (ModelManager._shared_model is not None and 
                 ModelManager._model_name_cache == model_name)
     
-    async def warm_up_model(self, model_name: str = "paraphrase-MiniLM-L6-v2") -> bool:
+    async def warm_up_model(self, model_name: str = "paraphrase-multilingual-MiniLM-L12-v2") -> bool:
         """
         预热模型 - 在后台异步加载模型，避免在实际使用时阻塞
         

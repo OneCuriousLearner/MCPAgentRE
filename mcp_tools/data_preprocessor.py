@@ -152,7 +152,7 @@ def extract_docx_content(docx_path: str) -> str:
 async def preprocess_description_field(
     data_file_path: str = "local_data/msg_from_fetcher.json",
     output_file_path: str = "local_data/msg_from_fetcher.json",
-    use_api: bool = True,
+    use_api: bool = False,
     process_documents: bool = False,
     process_images: bool = False
 ) -> str:
