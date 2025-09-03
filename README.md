@@ -34,25 +34,25 @@
 
 #### 数据预处理工具
 
-* **`preprocess_tapd_description(data_file_path, output_file_path, use_api, process_documents, process_images)`** - 清理TAPD数据中description字段的HTML样式，提取文字、链接、图片内容并通过DeepSeek API优化表达（需要配置 DeepSeek API 密钥），大幅压缩数据长度同时保留关键信息【仍在开发中...】
-  * 遇到了腾讯文档API导出限制问题，API每日仅限导出9篇文档
-  * 遇到了TAPD数据详情中图片、视频无法导出的问题
+* **`preprocess_tapd_description(data_file_path, output_file_path, use_api, process_documents, process_images)`** - 清理 TAPD 数据中 `description` 字段的 HTML 样式，提取文字、链接、图片内容并通过 LLM API 优化表达（需要配置 LLM API 密钥），大幅压缩数据长度同时保留关键信息【仍在开发中...】
+  * 遇到了腾讯文档 API 导出限制问题，API 每日仅限导出 9 篇文档
+  * 遇到了 TAPD 数据详情中图片、视频无法导出的问题，仍未在文档中找到相关描述
   * 目前仅支持文本内容的提取和处理
-* **`preview_tapd_description_cleaning(data_file_path, item_count)`** - 预览description字段清理效果，展示压缩比例和提取信息，不修改原始数据
+* **`preview_tapd_description_cleaning(data_file_path, item_count)`** - 预览 `description` 字段清理效果，展示压缩比例和提取信息，不修改原始数据
 * **`docx_summarizer.py`** - 提取 .docx 文档中的文本、图片和表格信息，并生成摘要【仍在开发中...】
 
 #### 精确搜索工具
 
-* **`precise_search_tapd_data(search_value, search_field, data_type, exact_match, case_sensitive)`** - TAPD数据精确搜索工具，支持对需求和缺陷进行精确字段匹配搜索【新增功能】
+* **`precise_search_tapd_data(search_value, search_field, data_type, exact_match, case_sensitive)`** - TAPD 数据精确搜索工具，支持对需求和缺陷进行精确字段匹配搜索
   * 支持按任意字段精确或模糊搜索
   * 可指定搜索需求、缺陷或两者
   * 支持大小写敏感选项
   * 提供匹配信息和统计摘要
-* **`search_tapd_by_priority(priority_filter, data_type)`** - 按优先级搜索TAPD数据，快速筛选高中低优先级项目【新增功能】
+* **`search_tapd_by_priority(priority_filter, data_type)`** - 按优先级搜索 TAPD 数据，快速筛选高中低优先级项目
   * 支持高中低优先级预设过滤器
   * 支持具体优先级标签搜索
   * 默认查找高优先级数据（priority >= 3 或 urgent/high）
-* **`get_tapd_data_statistics(data_type)`** - 获取TAPD数据统计信息，提供全面的数据分布分析【新增功能】
+* **`get_tapd_data_statistics(data_type)`** - 获取 TAPD 数据统计信息，提供全面的数据分布分析
   * 包含数量、优先级、状态、创建者分布
   * 支持需求和缺陷的独立统计
   * 提供最近项目和完成情况统计
@@ -75,8 +75,8 @@
 
 #### 数据生成与分析工具
 
-* **`generate_fake_tapd_data(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)`** - 生成模拟 TAPD 数据，用于测试和演示（若不指明地址，使用后可能会覆盖本地数据，若需要来自 API 的正确数据，请再次调用数据获取工具）
-* **`generate_tapd_overview(since, until, max_total_tokens, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要在环境中配置 DeepSeek 或 SiliconFlow API 密钥）
+* **`generate_fake_tapd_data(n_story_A, n_story_B, n_bug_A, n_bug_B, output_path)`** - 生成模拟 TAPD 数据，用于测试和演示（若不指明地址，使用后可能会覆盖本地数据，若需要来自 TAPD API 的正确数据，请再次调用数据获取工具）
+* **`generate_tapd_overview(since, until, max_total_tokens, use_local_data)`** - 使用 LLM 简要生成项目概览报告与摘要，用于了解项目概况（需要配置 LLM API 密钥）
 * **`analyze_word_frequency(min_frequency, use_extended_fields, data_file_path)`** - 分析 TAPD 数据的词频分布，生成关键词词云统计，为搜索功能提供精准关键词建议
 
 #### 示例工具
@@ -91,7 +91,7 @@
 
 * [test_case_rules_customer.py](mcp_tools/test_case_rules_customer.py) - 测试用例评估规则配置脚本，用于配置测试用例的评估标准和优先级
 * [test_case_require_list_knowledge_base.py](mcp_tools/test_case_require_list_knowledge_base.py) - 测试用例需求知识库生成脚本，可从 TAPD 数据中提取需求信息并生成知识库，或手动修改需求信息
-* [test_case_evaluator.py](mcp_tools/test_case_evaluator.py) - 测试用例AI评估器脚本，用于根据配置的规则评估测试用例质量，并生成评估报告至本地文件
+* [test_case_evaluator.py](mcp_tools/test_case_evaluator.py) - 测试用例 AI 评估器脚本，用于根据配置的规则评估测试用例质量，并生成评估报告至本地文件
 
 ### 统一接口脚本
 
@@ -109,62 +109,64 @@
 
 #### ModelManager 类
 
-* **`__init__(config)`** - 初始化模型管理器，依赖MCPToolsConfig实例
-* **`get_project_model_path(model_name)`** - 检测本地是否存在指定模型，返回模型路径或None
-* **`get_model(model_name)`** - 获取SentenceTransformer模型实例，优先使用本地模型，支持自动下载和缓存
+* **`__init__(config)`** - 初始化模型管理器，依赖 MCPToolsConfig 实例
+* **`get_project_model_path(model_name)`** - 检测本地是否存在指定模型，返回模型路径或 None
+* **`get_model(model_name)`** - 获取 SentenceTransformer 模型实例，优先使用本地模型，支持自动下载和缓存
 * **`clear_cache()`** - 清除全局模型缓存，释放内存资源
 
 #### TextProcessor 类
 
-* **`extract_text_from_item(item, item_type)`** - 从TAPD数据项（需求/缺陷）中提取关键文本信息，支持不同类型的字段提取策略
+* **`extract_text_from_item(item, item_type)`** - 从 TAPD 数据项（需求/缺陷）中提取关键文本信息，支持不同类型的字段提取策略
 
 #### FileManager 类
 
-* **`__init__(config)`** - 初始化文件管理器，依赖MCPToolsConfig实例
-* **`load_tapd_data(file_path)`** - 加载TAPD JSON数据文件，支持绝对路径和相对路径
-* **`load_json_data(file_path)`** - 加载JSON数据文件，支持错误处理，文件不存在时返回空字典
-* **`save_json_data(data, file_path)`** - 保存数据为JSON格式，自动创建目录结构
-* **`read_excel_with_mapping(excel_file_path, column_mapping, na_to_empty=True)`** - 通用Excel读取与列映射，返回list[dict]
+* **`__init__(config)`** - 初始化文件管理器，依赖 MCPToolsConfig 实例
+* **`load_tapd_data(file_path)`** - 加载 TAPD JSON 数据文件，支持绝对路径和相对路径
+* **`load_json_data(file_path)`** - 加载 JSON 数据文件，支持错误处理，文件不存在时返回空字典
+* **`save_json_data(data, file_path)`** - 保存数据为 JSON 格式，自动创建目录结构
+* **`read_excel_with_mapping(excel_file_path, column_mapping, na_to_empty=True)`** - 通用 Excel 读取与列映射，返回 list[dict]
 
 #### TransmissionManager 类
 
-* **`__init__(file_manager)`** - 初始化传输管理器，依赖FileManager实例
+* **`__init__(file_manager)`** - 初始化传输管理器，依赖 FileManager 实例
 * **`update_stats(success, retries)`** - 更新传输统计信息，记录成功/失败次数和重试次数
-* **`finalize_report()`** - 生成最终传输报告，保存统计数据到JSON文件
+* **`finalize_report()`** - 生成最终传输报告，保存统计数据到 JSON 文件
 
 #### TokenCounter 类
 
-* **`__init__(config)`** - 初始化Token计数器，依赖MCPToolsConfig实例，自动尝试加载DeepSeek tokenizer
-* **`count_tokens(text)`** - 计算文本的token数量，优先使用transformers库精确计算，失败时使用改进的预估模式
-* **`_try_load_tokenizer()`** - 尝试加载本地DeepSeek tokenizer，支持精确token计数
+* **`__init__(config)`** - 初始化 Token 计数器，依赖 MCPToolsConfig 实例，自动尝试加载 DeepSeek tokenizer
+* **`count_tokens(text)`** - 计算文本的 token 数量，优先使用 transformers 库精确计算，失败时使用改进的预估模式
+* **`_try_load_tokenizer()`** - 尝试加载本地 DeepSeek tokenizer，支持精确 token 计数
 
 #### BatchingUtils 工具类
 
-* **`split_by_token_budget(items, estimate_tokens_fn, token_threshold, start_index=0)`** - 基于token阈值的贪心分批，返回(本批列表, 下一起点, 估算tokens)
+* **`split_by_token_budget(items, estimate_tokens_fn, token_threshold, start_index=0)`** - 基于 token 阈值的贪心分批，返回(本批列表, 下一起点, 估算 tokens)
 
 #### MarkdownUtils 工具类
 
-* **`parse_markdown_tables(md_text)`** - 纯解析Markdown表格为通用结构[{headers, rows}]，不含业务映射
+* **`parse_markdown_tables(md_text)`** - 纯解析 Markdown 表格为通用结构 `[{headers, rows}]`，不含业务映射
 
 #### APIManager 类
 
-* **`__init__()`** - 初始化API管理器，支持DeepSeek和SiliconFlow双API配置
-* **`get_headers(endpoint)`** - 智能构建API请求头，根据endpoint自动选择对应的API密钥
-* **`call_llm(prompt, session, model, endpoint, max_tokens)`** - 兼容多API的LLM调用接口
+* **`__init__()`** - 初始化 API 管理器，支持 DeepSeek 和 SiliconFlow 双 API 配置
+* **`get_headers(endpoint)`** - 智能构建 API 请求头，根据 endpoint 自动选择对应的 API 密钥
+* **`call_llm(prompt, session, model, endpoint, max_tokens)`** - 兼容多 API 的 LLM 调用接口
   * 支持 **DeepSeek API**（默认）：`deepseek-chat`、`deepseek-reasoner` 模型
   * 支持 **SiliconFlow API**：`deepseek-ai/DeepSeek-V3.1` 等模型
   * 自动检测API类型并适配不同的请求格式和错误处理
 
 #### 全局实例管理函数
 
-* **`get_config()`** - 获取全局MCPToolsConfig实例（单例模式）
-* **`get_model_manager()`** - 获取全局ModelManager实例（单例模式）
-* **`get_file_manager()`** - 获取全局FileManager实例（单例模式）
-* **`get_api_manager()`** - 获取全局APIManager实例（单例模式）
-* **`get_transmission_manager()`** - 获取全局TransmissionManager实例（单例模式）
-* **`get_token_counter()`** - 获取全局TokenCounter实例（单例模式）
+* **`get_config()`** - 获取全局 MCPToolsConfig 实例（单例模式）
+* **`get_model_manager()`** - 获取全局 ModelManager 实例（单例模式）
+* **`get_file_manager()`** - 获取全局 FileManager 实例（单例模式）
+* **`get_api_manager()`** - 获取全局 APIManager 实例（单例模式）
+* **`get_transmission_manager()`** - 获取全局 TransmissionManager 实例（单例模式）
+* **`get_token_counter()`** - 获取全局 TokenCounter 实例（单例模式）
 
 ## 项目结构
+
+* 这些目录数据可能未及时更新，请以实际情况为准
 
 ```text
 MCPAgentRE\
@@ -208,6 +210,10 @@ MCPAgentRE\
 ├─tapd_mcp_server.py          # MCP 服务器启动脚本，用于提供所有 MCP 工具
 └─uv.lock                     # UV 包管理器使用的锁定文件
 ```
+
+### 架构图
+
+![项目架构图](MCPAgentRE架构图.png)
 
 ## 迁移步骤
 
@@ -259,11 +265,11 @@ MCPAgentRE\
   uv sync
   ```
 
-  * 该命令会根据 [pyproject.toml](pyproject.toml) 安装所有依赖（包括MCP SDK、aiohttp等）
+  * 该命令会根据 [pyproject.toml](pyproject.toml) 安装所有依赖（包括 MCP SDK、aiohttp 等）
 
 ### 四、配置调整
 
-1. **TAPD API配置**
+#### **TAPD API配置**
 
 * 在项目根目录下创建 `api.txt` 文件，复制下列文本，并替换配置为目标TAPD项目的真实值：
 
@@ -273,19 +279,20 @@ MCPAgentRE\
   WORKSPACE_ID = '替换为你的TAPD项目ID'
   ```
 
-  * 注意：TAPD API用户名和密码需要从TAPD平台获取，具体操作请参阅[开放平台文档](https://open.tapd.cn/document/api-doc/API%E6%96%87%E6%A1%A3/%E4%BD%BF%E7%94%A8%E5%BF%85%E8%AF%BB.html)
-  * WORKSPACE_ID：TAPD项目ID，可通过TAPD平台获取
-  * 提交Git时会根据`.gitignore`忽略`api.txt`文件，确保敏感信息不被泄露
+  * 注意：TAPD API 用户名和密码需要从 TAPD 平台获取，具体操作请参阅[开放平台文档](https://open.tapd.cn/document/api-doc/API%E6%96%87%E6%A1%A3/%E4%BD%BF%E7%94%A8%E5%BF%85%E8%AF%BB.html)
+  * WORKSPACE_ID：TAPD 项目 ID，可通过 TAPD 平台获取
+  * 提交 Git 时会根据 `.gitignore` 忽略 `api.txt` 文件，确保敏感信息不被泄露
 
-1. **LLM API配置**
+#### **LLM API配置**
 
-系统现已支持两种LLM API提供商，您可以根据需要选择配置：
+* **特别提醒：若您的 TAPD 数据需要较高的保密等级，请不要配置此项，或自行在 [common_utils.py](mcp_tools/common_utils.py) 的 `class APIManager` 中添加满足保密需求的 LLM API**
+* 系统现已支持两种 LLM API 提供商，您可以根据需要选择配置：
 
-#### DeepSeek API配置
+##### DeepSeek API配置
 
-如果您需要使用智能摘要功能（`generate_tapd_overview`）或 description 优化功能（`preprocess_tapd_description`），需要配置DeepSeek 或 SiliconFlow API密钥：
+如果您需要使用智能摘要功能（`generate_tapd_overview`）或 `description` 优化功能（`preprocess_tapd_description`），需要配置 DeepSeek 或 SiliconFlow API 密钥：
 
-* **获取API密钥**：访问 [DeepSeek 开放平台](https://platform.deepseek.com/) 注册并获取API密钥
+* **获取API密钥**：访问 [DeepSeek 开放平台](https://platform.deepseek.com/) 注册并获取 API 密钥
 
 * **设置环境变量**（Windows PowerShell）：
 
@@ -297,12 +304,12 @@ MCPAgentRE\
   [Environment]::SetEnvironmentVariable("DS_KEY", "your-deepseek-api-key-here", "User")
   ```
 
-#### SiliconFlow API配置
+##### SiliconFlow API配置
 
-SiliconFlow提供多种优质模型，包括DeepSeek、Kimi、Qwen等：
+SiliconFlow 提供多种优质模型，包括 DeepSeek、Kimi、Qwen 等：
 
-* **获取API密钥**：访问 [SiliconFlow 开放平台](https://siliconflow.cn/) 注册并获取API密钥
-* 如果这是你的首次注册，在 [注册页面](https://cloud.siliconflow.cn/i/nYbojgoI) 可以填写我的邀请码 `nYbojgoI`，成功注册后双方均可获得 ￥14 额度，等价于 100w tokens 的免费试用额度
+* **获取API密钥**：访问 [SiliconFlow 开放平台](https://siliconflow.cn/) 注册并获取 API 密钥
+* 如果这是你的首次注册，在 [注册页面](https://cloud.siliconflow.cn/i/nYbojgoI) 可以填写我的邀请码 `nYbojgoI`，成功注册后双方均可获得 RMB 14 额度，等价于 100w tokens 的免费试用额度
 
 * **设置环境变量**（Windows PowerShell）：
 
@@ -323,9 +330,9 @@ SiliconFlow提供多种优质模型，包括DeepSeek、Kimi、Qwen等：
 
 * **注意事项**：
 
-* 设置环境变量后需重启编辑器和MCP客户端
-* 如果不配置API密钥，智能摘要工具会返回错误提示，但不影响其他功能的使用
-* 若需要使用SiliconFlow的其他模型，可在 [common_utils.py](mcp_tools/common_utils.py) 文件头部修改 `SF_DEFAULT_MODEL` 变量
+* 设置环境变量后需重启编辑器和 MCP 客户端
+* 如果不配置 API 密钥，智能摘要工具会返回错误提示，但不影响其他功能的使用
+* 若需要使用 SiliconFlow 的其他模型，可在 [common_utils.py](mcp_tools/common_utils.py) 文件头部修改 `SF_DEFAULT_MODEL` 变量，或在环境变量中配置 `SF_DEFAULT_MODEL`
 * 详细配置说明请参考 [SiliconFlow API Docs](https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions#llm)
  与 [DeepSeek API Docs](https://api-docs.deepseek.com/zh-cn/)
 
@@ -345,7 +352,7 @@ SiliconFlow提供多种优质模型，包括DeepSeek、Kimi、Qwen等：
 
 1. 确保`tapd_mcp_server.py`的 main 函数中没有任何 print 语句（或已注释掉），以避免在启动时输出调试信息。
 
-2. 运行MCP服务器（此操作将由AI客户端根据配置文件自动执行，无需手动操作）：
+2. 运行 MCP 服务器（此操作将由 AI 客户端根据配置文件自动执行，无需手动操作）：
 
   ```bash
   uv run tapd_mcp_server.py
@@ -397,9 +404,9 @@ uv run mcp_tools/test_case_evaluator.py
 
 ### 六、常见问题排查
 
-* **依赖缺失**：若提示`ModuleNotFoundError`，检查是否执行`uv add`命令，或尝试`uv add <缺失模块名>`
-* **API连接失败**：确认`API_USER` / `API_PASSWORD` / `WORKSPACE_ID`正确，且TAPD账号有对应项目的读取权限
-* **Python版本不匹配**：确保目标电脑Python版本为3.10.x（通过`python --version`验证）
+* **依赖缺失**：若提示 `ModuleNotFoundError`，检查是否执行 `uv add` 命令，或尝试 `uv add <缺失模块名>`
+* **API连接失败**：确认 `API_USER` / `API_PASSWORD` / `WORKSPACE_ID` 正确，且TAPD账号有对应项目的读取权限
+* **Python版本不匹配**：确保目标电脑Python版本为3.10.x（通过 `python --version` 验证）
 
 ---
 
@@ -408,8 +415,8 @@ uv run mcp_tools/test_case_evaluator.py
 ## 前提条件
 
 * 已在本地电脑上完成项目的迁移和验证
-* 已安装并运行MCP服务器
-* 已在本地电脑上安装并运行AI客户端（以Claude Desktop为例）
+* 已安装并运行 MCP 服务器
+* 已在本地电脑上安装并运行 AI 客户端（以 Claude Desktop 为例）
 
 ## 连接步骤
 
@@ -450,7 +457,7 @@ uv run mcp_tools/test_case_evaluator.py
 
 2. **配置MCP服务器**
 
-* 使用快捷键 `Ctrl + ,` 打开设置页面（或者点击左上角菜单图标 - File - Settings）
+* 使用快捷键 `Ctrl + ,` 打开设置页面（或者点击左上角菜单图标 - `File` - `Settings`）
 * 选择 `Developer` 选项卡
 * 点击 `Edit Config` 按钮，将会弹出文件资源管理器
 * 编辑高亮提示的 `claude_desktop_config.json` 文件，添加以下内容（若有其他内容，请注意层级关系）：
@@ -472,7 +479,7 @@ uv run mcp_tools/test_case_evaluator.py
   ```
 
   * 注意：
-    * `command` 字段指定了运行MCP服务器的命令（通常为`uv`）
+    * `command` 字段指定了运行MCP服务器的命令（通常为 `uv`）
     * `args` 字段指定了运行MCP服务器的参数，包括项目目录（`--directory`）和运行的脚本文件（`run tapd_mcp_server.py`）
     * 确保 `--directory` 指向的是MCP服务器所在的目录，即 `D:\MiniProject\MCPAgentRE`（请按照实际目录修改）
 * 保存并关闭文件
@@ -480,8 +487,8 @@ uv run mcp_tools/test_case_evaluator.py
 ## 设置LLM提示词【推荐】
 
 * 将 [提示词-TAPD平台MCP分析助手.md](提示词-TAPD平台MCP分析助手.md) 文件中的内容复制到 Chatbox 的提示词设置中。
-* 除 Chatbox 外，其他AI客户端也可以使用相同的提示词内容。
-* 此功能将帮助您更好地与MCP服务器进行交互。根据实际需求调整提示词内容，以提高交互效果。
+* 除 Chatbox 外，其他 AI 客户端也可以使用相同的提示词内容。
+* 此功能将帮助您更好地与 MCP 服务器进行交互。根据实际需求调整提示词内容，以提高交互效果。
 
 ## 测试连接
 
@@ -489,17 +496,17 @@ uv run mcp_tools/test_case_evaluator.py
 * 在新的聊天窗口中，输入以下内容测试基础功能：
 
   ```text
-  请使用tapd_mcp_server插件获取TAPD项目的需求和缺陷数据
+  请使用 tapd_mcp_server 插件获取 TAPD 项目的需求和缺陷数据
   ```
 
-* 点击发送按钮，等待MCP服务器返回数据
+* 点击发送按钮，等待 MCP 服务器返回数据
 * 检查返回的数据是否符合预期，包括需求和缺陷的数量和内容
 
 ## 注意事项
 
-* 确保MCP服务器的路径和参数配置正确
-* 如果MCP服务器运行时出现错误，检查MCP服务器的日志文件（通常位于`%APPDATA%\Claude\logs`）以获取更多信息
-* 如果AI客户端无法识别MCP插件，可能需要重新安装或更新AI客户端
+* 确保 MCP 服务器的路径和参数配置正确
+* 如果 MCP 服务器运行时出现错误，检查 MCP 服务器的日志文件（通常位于 `%APPDATA%\Claude\logs`）以获取更多信息
+* 如果 AI 客户端无法识别 MCP 插件，可能需要重新安装或更新 AI 客户端
 * 您可以运行以下命令列出最近的日志并跟踪任何新日志（在 Windows 上，它只会显示最近的日志）：
 
   ```bash
@@ -508,14 +515,14 @@ uv run mcp_tools/test_case_evaluator.py
 
 # 扩展MCP服务器功能
 
-* 为了让项目目录结构更清晰，建议将MCP工具函数放在 `mcp_tools` 文件夹中。下面是一个添加新工具函数的示例方法。
+* 为了让项目目录结构更清晰，建议将 MCP 工具函数放在 `mcp_tools` 文件夹中。下面是一个添加新工具函数的示例方法。
 * 拓展阅读: [TAPD平台MCP服务器开发指南.md](TAPD平台MCP服务器开发指南.md)
 
-## 添加新工具函数
+## 添加新 MCP 函数脚本
 
 1. **创建工具函数文件**
 
-* 在 `mcp_tools` 文件夹中创建新的Python文件（如 `new_tool.py`）
+* 在 `mcp_tools` 文件夹中创建新的 Python 文件（如 `new_tool.py`）
 * 编写异步函数，示例模板：
 
   ```python
