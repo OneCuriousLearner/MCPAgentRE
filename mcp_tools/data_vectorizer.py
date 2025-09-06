@@ -166,7 +166,7 @@ class TAPDDataVectorizer:
             
         return chunks
     
-    def process_tapd_data(self, data_file_path: Optional[str] = None, chunk_size: int = 10) -> bool:
+    def process_tapd_data(self, data_file_path: Optional[str] = None, chunk_size: int = 10, remove_existing: bool = True) -> bool:
         """
         处理TAPD数据文件，进行向量化
         
@@ -252,7 +252,7 @@ class TAPDDataVectorizer:
             
             # 保存到文件
             t0 = time.perf_counter()
-            self._save_vector_db()
+            self._save_vector_db(remove_existing=remove_existing)
             self._log(f"Vector DB saved in {(time.perf_counter()-t0):.2f}s")
             
             self._log(f"Vectorization done! processed {len(all_chunks)} chunks, dim: {dimension}")
@@ -264,23 +264,38 @@ class TAPDDataVectorizer:
             self._last_error = str(e)
             return False
     
-    def _save_vector_db(self):
-        """保存向量数据库到文件"""
+    def _save_vector_db(self, remove_existing: bool = True):
+        """保存向量数据库到文件
+        
+        参数:
+            remove_existing: 保存前是否删除已有文件（.config.json/.index/.metadata.pkl），默认删除
+        """
         try:
             # 确保目录存在
             os.makedirs(os.path.dirname(self.vector_db_path), exist_ok=True)
             
             # 保存FAISS索引
             index_path = f"{self.vector_db_path}.index"
+            
+            # 如需清理旧文件，先删除再写入，避免旧文件残留
+            metadata_path = f"{self.vector_db_path}.metadata.pkl"
+            config_path = f"{self.vector_db_path}.config.json"
+            if remove_existing:
+                for p in (index_path, metadata_path, config_path):
+                    try:
+                        if os.path.exists(p):
+                            os.remove(p)
+                            self._log(f"Removed existing file: {p}")
+                    except Exception as rm_err:
+                        self._log(f"Warning: failed to remove {p}: {rm_err}")
+
             faiss.write_index(self.index, index_path)
             
             # 保存元数据 (向量数据和元数据仍需要特殊处理，因为FileManager没有支持pickle和faiss格式)
-            metadata_path = f"{self.vector_db_path}.metadata.pkl"
             with open(metadata_path, 'wb') as f:
                 pickle.dump(self.metadata, f)
                 
             # 保存配置信息 - 使用统一的FileManager
-            config_path = f"{self.vector_db_path}.config.json"
             config = {
                 'model_name': self.model_name,
                 'chunk_count': len(self.metadata),
@@ -406,7 +421,7 @@ class TAPDDataVectorizer:
             self._log(f"Error getting stats: {str(e)}")
             return {}
 
-    async def process_tapd_data_async(self, data_file_path: Optional[str] = None, chunk_size: int = 10) -> bool:
+    async def process_tapd_data_async(self, data_file_path: Optional[str] = None, chunk_size: int = 10, remove_existing: bool = True) -> bool:
         """
         异步处理TAPD数据文件，进行向量化
         
@@ -497,7 +512,7 @@ class TAPDDataVectorizer:
             
             # 保存到文件 - 在线程池中执行I/O操作
             t0 = time.perf_counter()
-            await asyncio.to_thread(self._save_vector_db)
+            await asyncio.to_thread(self._save_vector_db, remove_existing)
             self._log(f"Vector DB saved in {(time.perf_counter()-t0):.2f}s")
             
             self._log(f"Async vectorization done! processed {len(all_chunks)} chunks, dim: {dimension}")
@@ -512,13 +527,14 @@ class TAPDDataVectorizer:
 
 # 以下是供MCP工具调用的函数
 
-async def vectorize_tapd_data(data_file_path: Optional[str] = None, chunk_size: int = 10) -> dict:
+async def vectorize_tapd_data(data_file_path: Optional[str] = None, chunk_size: int = 10, remove_existing: bool = True) -> dict:
     """
     Main function to vectorize TAPD data
     
     参数:
         data_file_path: 数据文件路径，默认为 local_data/msg_from_fetcher.json
         chunk_size: 分片大小，每个分片包含的条目数
+        remove_existing: 保存前是否删除已有向量库文件，默认是 True
         
     返回:
     Result dict
@@ -530,10 +546,10 @@ async def vectorize_tapd_data(data_file_path: Optional[str] = None, chunk_size: 
         
         # 优先使用异步版本，避免阻塞事件循环
         try:
-            success = await vectorizer.process_tapd_data_async(data_file_path, chunk_size)
+            success = await vectorizer.process_tapd_data_async(data_file_path, chunk_size, remove_existing)
         except AttributeError:
             # 如果异步版本不存在，回退到线程池版本
-            success = await asyncio.to_thread(vectorizer.process_tapd_data, data_file_path, chunk_size)
+            success = await asyncio.to_thread(vectorizer.process_tapd_data, data_file_path, chunk_size, remove_existing)
         
         if success:
             stats = vectorizer.get_database_stats()
@@ -543,7 +559,8 @@ async def vectorize_tapd_data(data_file_path: Optional[str] = None, chunk_size: 
                 "stats": stats,
                 "vector_db_path": vectorizer.vector_db_path,
                 "data_file_path": data_file_path or "local_data/msg_from_fetcher.json",
-                "elapsed_seconds": round(time.perf_counter() - overall_t0, 2)
+                "elapsed_seconds": round(time.perf_counter() - overall_t0, 2),
+                "removed_existing": bool(remove_existing)
             }
         else:
             # 优先返回内部记录的错误信息
@@ -553,7 +570,8 @@ async def vectorize_tapd_data(data_file_path: Optional[str] = None, chunk_size: 
                 "message": "Vectorization failed",
                 "details": str(detail),
                 "data_file_path": data_file_path or "local_data/msg_from_fetcher.json",
-                "elapsed_seconds": round(time.perf_counter() - overall_t0, 2)
+                "elapsed_seconds": round(time.perf_counter() - overall_t0, 2),
+                "removed_existing": bool(remove_existing)
             }
     except FileNotFoundError as e:
         return {
@@ -703,6 +721,7 @@ if __name__ == "__main__":
     p_vec = subparsers.add_parser("vectorize", help="执行TAPD数据向量化")
     p_vec.add_argument("--file", "-f", dest="data_file_path", default="local_data/msg_from_fetcher.json", help="数据文件路径，默认使用 local_data/msg_from_fetcher.json（相对路径按项目根目录解析）")
     p_vec.add_argument("--chunk", "-c", dest="chunk_size", type=int, default=10, help="分片大小，默认10")
+    p_vec.add_argument("--preserve-existing", action="store_true", help="保留已有向量库文件（默认会删除后重建）")
 
     # search 子命令：语义搜索
     p_search = subparsers.add_parser("search", help="在向量库中进行语义搜索")
@@ -713,7 +732,8 @@ if __name__ == "__main__":
 
     async def _main():
         if args.command == "vectorize":
-            res = await vectorize_tapd_data(data_file_path=args.data_file_path, chunk_size=args.chunk_size)
+            # 默认删除旧文件；当 --preserve-existing 被设置时，remove_existing=False
+            res = await vectorize_tapd_data(data_file_path=args.data_file_path, chunk_size=args.chunk_size, remove_existing=(not getattr(args, "preserve_existing", False)))
             print(json.dumps(res, ensure_ascii=False, indent=2))
         elif args.command == "search":
             res = await search_tapd_data(query=args.query, top_k=args.topk)

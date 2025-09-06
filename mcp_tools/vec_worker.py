@@ -19,7 +19,7 @@ import os
 import sys
 
 
-async def _run(data_file_path: str, chunk_size: int) -> int:
+async def _run(data_file_path: str, chunk_size: int, preserve_existing: bool) -> int:
     # Import here to avoid importing heavy libs when not needed.
     try:
         from .data_vectorizer import vectorize_tapd_data  # type: ignore
@@ -29,7 +29,7 @@ async def _run(data_file_path: str, chunk_size: int) -> int:
         from mcp_tools.data_vectorizer import vectorize_tapd_data  # type: ignore
 
     try:
-        res = await vectorize_tapd_data(data_file_path, chunk_size)
+        res = await vectorize_tapd_data(data_file_path, chunk_size, remove_existing=(not preserve_existing))
         # Ensure dict
         if isinstance(res, str):
             try:
@@ -50,15 +50,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="TAPD Vectorization Worker")
     parser.add_argument("--file", dest="data_file_path", default="local_data/msg_from_fetcher.json")
     parser.add_argument("--chunk", dest="chunk_size", type=int, default=10)
+    parser.add_argument("--preserve-existing", action="store_true", help="保留已有向量库文件（默认会删除后重建）")
     args = parser.parse_args()
 
     try:
-        return asyncio.run(_run(args.data_file_path, args.chunk_size))
+        return asyncio.run(_run(args.data_file_path, args.chunk_size, getattr(args, "preserve_existing", False)))
     except RuntimeError:
         # Fallback for environments with an active event loop
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        return loop.run_until_complete(_run(args.data_file_path, args.chunk_size))
+        return loop.run_until_complete(_run(args.data_file_path, args.chunk_size, getattr(args, "preserve_existing", False)))
 
 
 if __name__ == "__main__":

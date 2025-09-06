@@ -69,7 +69,7 @@
 
 #### 向量化与搜索工具
 
-* **`vectorize_data(data_file_path, chunk_size)`** - 向量化工具，支持自定义数据源的向量化，将数据转换为向量格式，用于后续的语义搜索和分析
+* **`vectorize_data(data_file_path, chunk_size, preserve_existing)`** - 向量化工具，支持自定义数据源的向量化，将数据转换为向量格式，用于后续的语义搜索和分析
 * **`get_vector_info()`** - 获取简化版向量数据库状态和统计信息
 * **`search_data(query, top_k)`** - 基于语义相似度的智能搜索，支持自然语言查询，返回与查询最相关的结果
 

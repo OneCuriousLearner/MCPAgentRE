@@ -200,10 +200,11 @@ async def get_tapd_bugs(clean_empty_fields: bool = True) -> str:
 async def vectorize_data(
     data_file_path: Optional[str] = "local_data/msg_from_fetcher.json",
     chunk_size: int = 5,
-    timeout_seconds: int = 600
+    timeout_seconds: int = 600,
+    preserve_existing: bool = False,
 ) -> str:
     """向量化TAPD数据以支持大批量数据处理
-    
+        
     功能描述:
         - 将获取到的的TAPD数据进行向量化
         - 解决大批量数据处理时tokens超限问题
@@ -216,6 +217,9 @@ async def vectorize_data(
             - 推荐值：5-15（平衡精度与效率）
             - 较小值：搜索更精准，但分片更多
             - 较大值：减少分片数量，但可能降低搜索精度
+        preserve_existing (bool): 是否保留已有向量库文件（默认 False）。
+            - False: 默认行为，向量化前删除旧文件（.index/.metadata.pkl/.config.json）后重建
+            - True: 保留已有文件，不做删除
         
     返回:
         str: 向量化处理结果的JSON字符串
@@ -231,7 +235,7 @@ async def vectorize_data(
         safe_timeout = max(0, int(timeout_seconds)) if isinstance(timeout_seconds, int) else 600
 
         print(
-            f"[MCP {datetime.now().strftime('%H:%M:%S')}] vectorize_data start, file={effective_path}, chunk_size={safe_chunk}, timeout={safe_timeout or 'no'}s",
+            f"[MCP {datetime.now().strftime('%H:%M:%S')}] vectorize_data start, file={effective_path}, chunk_size={safe_chunk}, timeout={safe_timeout or 'no'}s, preserve_existing={preserve_existing}",
             file=sys.stderr,
             flush=True,
         )
@@ -244,7 +248,8 @@ async def vectorize_data(
             effective_timeout = min(safe_timeout, 60) if safe_timeout > 0 else 60
             try:
                 async def _do_vectorize():
-                    return await vectorize_tapd_data(effective_path, safe_chunk)
+                    # 默认删除旧文件；当 preserve_existing=True 时，remove_existing=False
+                    return await vectorize_tapd_data(effective_path, safe_chunk, remove_existing=(not preserve_existing))
 
                 result = await asyncio.wait_for(_do_vectorize(), timeout=effective_timeout)
             except asyncio.TimeoutError:
@@ -264,6 +269,8 @@ async def vectorize_data(
         else:
             py_exe = sys.executable or "python"
             cmd = [py_exe, "-m", "mcp_tools.vec_worker", "--file", effective_path, "--chunk", str(safe_chunk)]
+            if preserve_existing:
+                cmd.append("--preserve-existing")
             try:
                 proc = await asyncio.create_subprocess_exec(
                     *cmd,

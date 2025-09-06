@@ -80,7 +80,7 @@ uv run test\vector_quick_start.py
 **语法**：
 
 ```text
-vectorize_data(chunk_size=10)
+vectorize_data(chunk_size=10, preserve_existing=False)
 ```
 
 **参数说明**：
@@ -89,6 +89,10 @@ vectorize_data(chunk_size=10)
   - 推荐值：10-20（平衡精度与效率）
   - 较小值：搜索更精准，但分片更多
   - 较大值：减少分片数量，但可能降低搜索精度
+
+- `preserve_existing`：是否保留已有向量库文件（默认 False）
+   - False：默认行为，向量化前删除旧文件（.index/.metadata.pkl/.config.json）后重建
+   - True：保留已有文件，不做删除
 
 **使用场景**：
 
@@ -100,6 +104,12 @@ vectorize_data(chunk_size=10)
 
 ```text
 请使用vectorize_data工具对当前TAPD数据进行向量化，使用默认分片大小
+```
+
+若需保留已有向量库文件：
+
+```text
+请使用vectorize_data工具进行向量化，并保留已有向量库文件（preserve_existing=true）
 ```
 
 ### 2. search_data - 智能搜索

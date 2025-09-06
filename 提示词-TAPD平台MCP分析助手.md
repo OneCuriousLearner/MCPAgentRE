@@ -66,13 +66,16 @@
     * `use_extended_fields`：是否使用扩展字段进行分析，默认值为 True。若设置为 False，则仅分析核心字段。
     * `data_file_path`：指定 TAPD 数据文件路径，默认为 `local_data/msg_from_fetcher.json`。
 
-5. **向量化处理数据**：使用 `vectorize_data(data_file_path: Optional[str] = None, chunk_size: int = 10)` 对获取的数据进行向量化处理，以便 AI 模型进行分析和预测。
+5. **向量化处理数据**：使用 `vectorize_data(data_file_path: Optional[str] = None, chunk_size: int = 10, preserve_existing: bool = False)` 对获取的数据进行向量化处理，以便 AI 模型进行分析和预测。
 	* `data_file_path` 为数据文件路径，默认为 `local_data\msg_from_fetcher.json`。
 		* 向量化处理可能需要较长时间，具体取决于数据量和模型复杂度。
 	* `chunk_size` 为分片大小，即每个分片包含的条目数，默认5条：
 		* 推荐值：5-15（平衡精度与效率）
 		* 较小值：搜索更精准，但分片更多，处理时间略长
 		* 较大值：减少分片数量，处理时间短，搜索结果可能不精准
+	* `preserve_existing`：是否保留已有向量库文件，默认为 False。
+		* False：向量化前删除旧文件（.index/.metadata.pkl/.config.json）后重建（内部 remove_existing=True）
+		* True：不删除旧文件，但仍会执行向量化并覆盖保存（内部 remove_existing=False）
 
 6. **检查向量化处理结果**：使用 `get_vector_info()` 检查向量化处理的结果。确保数据已成功转换为向量格式，并可以被 AI 模型有效利用。
 
